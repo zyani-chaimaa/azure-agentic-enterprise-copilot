@@ -71,8 +71,24 @@ configuration: {
           name: 'enterprise-copilot-api'
 
           
+          // Use our verified Linux AMD64 Docker image.
           image: '${registry.properties.loginServer}/enterprise-copilot-api:v2'
 
+          // Configure the Microsoft Foundry model used by FastAPI.
+          env: [
+            {
+              // URL of our Microsoft Foundry inference endpoint.
+              name: 'AZURE_OPENAI_ENDPOINT'
+              value: 'https://enterprise-copilot-dev-resource.services.ai.azure.com/openai/v1/'
+            }
+            {
+              // Name of the deployed GPT model.
+              name: 'AZURE_OPENAI_DEPLOYMENT'
+              value: 'gpt-5.4-mini'
+            }
+          ]
+
+          // Allocate compute resources to the API container.
           resources: {
             cpu: any('0.5')
             memory: '1Gi'
