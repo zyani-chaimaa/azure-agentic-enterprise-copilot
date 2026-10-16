@@ -35,3 +35,6 @@ htmlcov/
 
 # Generated ARM templates
 infrastructure/main.json
+
+# Raw datasets downloaded for local data processing
+data/raw/

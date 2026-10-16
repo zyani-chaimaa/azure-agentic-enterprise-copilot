@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # Store the location of our development database.
     database_path: Path = PROJECT_ROOT / "data" / "business.db"
 
+    # Azure SQL server hosting our Olist business dataset.
+    azure_sql_server: str = "sql-enterprise-copilot-dev.database.windows.net"
+
+    # Azure SQL database containing our eight Olist tables.
+    azure_sql_database: str = "sqldb-enterprise-copilot-dev"
+
     # Allow settings to be overridden using a local .env file.
     model_config = SettingsConfigDict(
         env_file=".env",

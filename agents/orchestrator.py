@@ -10,10 +10,36 @@ from app.config import settings
 
 # Import the business analytics tool.
 from agents.tools.revenue import get_revenue_summary
+from agents.tools.olist_revenue import get_olist_revenue_summary
 
 
 # Define the tools that the model is allowed to request.
 TOOLS = [
+    {
+        "type": "function",
+        "name": "get_olist_revenue_summary",
+        "description": (
+            "Compare historical Olist delivered-order item sales value "
+            "between two quarters. Uses real Azure SQL data, excludes freight, "
+            "and returns amounts in Brazilian reais (BRL)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "quarter_a": {
+                    "type": "string",
+                    "description": "Starting quarter, for example 2017-Q1.",
+                },
+                "quarter_b": {
+                    "type": "string",
+                    "description": "Ending quarter, for example 2017-Q2.",
+                },
+            },
+            "required": ["quarter_a", "quarter_b"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
     {
         "type": "function",
         "name": "get_revenue_summary",
@@ -83,6 +109,13 @@ def run_analytics_agent(question: str) -> dict:
             # Execute only the explicitly permitted analytics tool.
             if call.name == "get_revenue_summary":
                 result = get_revenue_summary(
+                    quarter_a=arguments["quarter_a"],
+                    quarter_b=arguments["quarter_b"],
+                )
+
+            # Execute the real Olist analytics tool when requested.
+            elif call.name == "get_olist_revenue_summary":
+                result = get_olist_revenue_summary(
                     quarter_a=arguments["quarter_a"],
                     quarter_b=arguments["quarter_b"],
                 )
