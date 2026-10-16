@@ -1,0 +1,33 @@
+
+# Import a helper for constructing filesystem paths.
+from pathlib import Path
+
+# Import configuration utilities that can read environment variables.
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Find the root directory of our repository.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+# Define all configurable application settings.
+class Settings(BaseSettings):
+    # Store the Azure Foundry model inference endpoint.
+    azure_openai_endpoint: str = (
+        "https://enterprise-copilot-dev-resource.services.ai.azure.com/openai/v1/"
+    )
+
+    # Store the name of the model deployment.
+    azure_openai_deployment: str = "gpt-5.4-mini"
+
+    # Store the location of our development database.
+    database_path: Path = PROJECT_ROOT / "data" / "business.db"
+
+    # Allow settings to be overridden using a local .env file.
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+    )
+
+
+# Create one settings object for the application.
+settings = Settings()
