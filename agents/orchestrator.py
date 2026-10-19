@@ -11,10 +11,36 @@ from app.config import settings
 # Import the business analytics tool.
 from agents.tools.revenue import get_revenue_summary
 from agents.tools.olist_revenue import get_olist_revenue_summary
+from agents.tools.olist_categories import get_top_product_categories
 
 
 # Define the tools that the model is allowed to request.
 TOOLS = [
+    {
+        "type": "function",
+        "name": "get_top_product_categories",
+        "description": (
+            "Rank Olist product categories by delivered-order item sales "
+            "value for a requested year. Returns category names, item "
+            "counts and sales in BRL, excluding freight."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "year": {
+                    "type": "integer",
+                    "description": "Calendar year, for example 2017.",
+                },
+                "top_n": {
+                    "type": "integer",
+                    "description": "Number of categories, from 1 to 20.",
+                },
+            },
+            "required": ["year", "top_n"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
     {
         "type": "function",
         "name": "get_olist_revenue_summary",
@@ -118,6 +144,13 @@ def run_analytics_agent(question: str) -> dict:
                 result = get_olist_revenue_summary(
                     quarter_a=arguments["quarter_a"],
                     quarter_b=arguments["quarter_b"],
+                )
+
+            # Execute product category ranking using real Azure SQL data.
+            elif call.name == "get_top_product_categories":
+                result = get_top_product_categories(
+                    year=arguments["year"],
+                    top_n=arguments["top_n"],
                 )
 
             # Reject any unexpected tool name.
