@@ -38,3 +38,12 @@ infrastructure/main.json
 
 # Raw datasets downloaded for local data processing
 data/raw/
+
+# Next.js frontend dependencies and generated files
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+frontend/*.tsbuildinfo
+frontend/.env*
+!frontend/.env.example

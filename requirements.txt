@@ -3,3 +3,6 @@ uvicorn[standard]
 openai
 azure-identity
 pydantic-settings
+azure-storage-blob
+azure-search-documents
+pymupdf

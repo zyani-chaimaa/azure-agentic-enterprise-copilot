@@ -1,0 +1,34 @@
+{
+  "appRoles": [
+    {
+      "allowedMemberTypes": [
+        "User"
+      ],
+      "description": "Access the Copilot and propose actions.",
+      "displayName": "Copilot User",
+      "id": "035f5bb6-19a1-481f-b347-3e09a9e92374",
+      "isEnabled": true,
+      "value": "Copilot.User"
+    },
+    {
+      "allowedMemberTypes": [
+        "User"
+      ],
+      "description": "Approve or reject proposed actions.",
+      "displayName": "Copilot Reviewer",
+      "id": "ca49b20d-66e6-4702-8b5d-6245d34bf780",
+      "isEnabled": true,
+      "value": "Copilot.Reviewer"
+    },
+    {
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Execute previously approved actions.",
+      "displayName": "Copilot Executor",
+      "id": "fefd0d5d-393e-4c06-8f4d-70b4d4b48fb6",
+      "isEnabled": true,
+      "value": "Copilot.Executor"
+    }
+  ]
+}

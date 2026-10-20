@@ -14,9 +14,38 @@ from app.model_client import create_model_client
 # Import the configured Azure model deployment.
 from app.config import settings
 
+# Import our Azure AI Search RAG answer generator.
+from rag.answer_generator import answer_document_question
+
+# Import FastAPI's dependency injection mechanism.
+from fastapi import Depends
+
+# Import our human-user authorization dependency.
+from app.auth import require_human_role
+
+# Import FastAPI middleware for controlling browser cross-origin requests.
+from fastapi.middleware.cors import CORSMiddleware
+
 # Create the FastAPI application.
 app = FastAPI(title="Enterprise Decision & Action Copilot")
 
+# Allow our local Next.js frontend to communicate with FastAPI.
+app.add_middleware(
+    # Use FastAPI's built-in CORS middleware.
+    CORSMiddleware,
+
+    # Allow requests only from our local frontend during development.
+    allow_origins=["http://localhost:3000"],
+
+    # Do not enable cookie-based cross-origin credentials.
+    allow_credentials=False,
+
+    # Allow the HTTP methods our frontend will use.
+    allow_methods=["GET", "POST", "OPTIONS"],
+
+    # Allow the Authorization header used for Microsoft access tokens.
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 # Define the expected structure of an incoming question.
 class QuestionRequest(BaseModel):
@@ -68,4 +97,43 @@ def test_model_connection():
         "status": response.status,
         "answer": response.output_text,
         "model": settings.azure_openai_deployment,
+    }
+
+# Define an endpoint for answering questions from enterprise documents.
+@app.post("/api/v1/documents/ask")
+def ask_documents(request: QuestionRequest):
+
+    # Handle failures without exposing internal Azure details to clients.
+    try:
+
+        # Retrieve relevant PDF passages and generate a grounded answer.
+        result = answer_document_question(request.question)
+
+        # Return the answer together with its source citations.
+        return result
+
+    # Catch errors from Azure AI Search or Microsoft Foundry.
+    except Exception as exc:
+
+        # Log the exception locally to help diagnose failures.
+        print(f"Document RAG error: {type(exc).__name__}: {exc}")
+
+        # Return a generic HTTP 500 error to the caller.
+        raise HTTPException(
+            status_code=500,
+            detail="Document question request failed.",
+        ) from exc
+
+
+# Return the identity of an authenticated Copilot user.
+@app.get("/api/v1/auth/me")
+def get_current_user(
+    # Require the Copilot.User role and Copilot.Access scope.
+    claims: dict = Depends(require_human_role("Copilot.User")),
+):
+    # Return safe identity information from the verified token.
+    return {
+        "authenticated": True,
+        "user_id": claims["oid"],
+        "roles": claims.get("roles", []),
     }
