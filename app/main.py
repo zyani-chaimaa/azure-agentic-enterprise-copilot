@@ -62,7 +62,11 @@ def health_check():
 
 # Define the endpoint that executes the analytics agent.
 @app.post("/api/v1/analytics/ask")
-def ask_analytics_agent(request: QuestionRequest):
+def ask_analytics_agent(
+    request: QuestionRequest,
+    # Reject requests without a valid token, scope, and Copilot.User role.
+    claims: dict = Depends(require_human_role("Copilot.User")),
+):
     # Execute the agent and return its structured result.
     try:
         # Forward the validated question to the agent.
@@ -81,7 +85,10 @@ def ask_analytics_agent(request: QuestionRequest):
 
 # Create an endpoint for verifying cloud-to-model connectivity.
 @app.get("/api/v1/model/test")
-def test_model_connection():
+def test_model_connection(
+    # Require a valid Microsoft token, API scope, and Copilot.User role.
+    claims: dict = Depends(require_human_role("Copilot.User")),
+):
     # Create a client using the current environment's Azure identity.
     client = create_model_client()
 
@@ -101,7 +108,11 @@ def test_model_connection():
 
 # Define an endpoint for answering questions from enterprise documents.
 @app.post("/api/v1/documents/ask")
-def ask_documents(request: QuestionRequest):
+def ask_documents(
+    request: QuestionRequest,
+    # Require a valid token with Copilot.Access and Copilot.User.
+    claims: dict = Depends(require_human_role("Copilot.User")),
+):
 
     # Handle failures without exposing internal Azure details to clients.
     try:
@@ -137,3 +148,30 @@ def get_current_user(
         "user_id": claims["oid"],
         "roles": claims.get("roles", []),
     }
+
+# Provide a unified entry point for analytics and document intelligence.
+@app.post("/api/v1/copilot/ask")
+def ask_copilot(
+    request: QuestionRequest,
+    # Require Microsoft authentication and the Copilot.User role.
+    claims: dict = Depends(require_human_role("Copilot.User")),
+):
+    # Handle model, SQL, and search failures without exposing internals.
+    try:
+        # Let the existing orchestrator select and execute permitted tools.
+        # Execute the existing AI orchestrator.
+        result = run_analytics_agent(request.question)
+
+        # Preserve the existing response format for the frontend.
+        return result
+
+    # Convert unexpected backend errors into a safe HTTP response.
+    except Exception as exc:
+        # Record the error type for local troubleshooting.
+        print(f"Copilot error: {type(exc).__name__}: {exc}")
+
+        # Avoid leaking credentials or internal Azure details.
+        raise HTTPException(
+            status_code=500,
+            detail="Copilot request failed.",
+        ) from exc

@@ -11,6 +11,44 @@ from app.main import app
 client = TestClient(app)
 
 
+# Import pytest to create a reusable test fixture.
+import pytest
+
+
+# Simulate an authorized Microsoft user for each API test.
+@pytest.fixture(autouse=True)
+def authenticated_test_user():
+
+    # Find the analytics endpoint registered by FastAPI.
+    route = next(
+        route for route in app.routes
+        if getattr(route, "path", None) == "/api/v1/analytics/ask"
+    )
+
+    # Retrieve the exact authentication dependency.
+    auth_dependency = route.dependant.dependencies[0].call
+
+    # Simulate verified Microsoft Entra claims.
+    def mock_authenticated_user():
+        return {
+            "oid": "test-user-001",
+            "roles": ["Copilot.User"],
+            "scp": "Copilot.Access",
+        }
+
+    # Override authentication for this test only.
+    app.dependency_overrides[auth_dependency] = mock_authenticated_user
+
+    # Execute the test with simulated authentication.
+    try:
+        yield
+
+    # Restore the original authentication dependency afterward.
+    finally:
+        app.dependency_overrides.pop(auth_dependency, None)
+
+
+
 # Verify that the API returns an AI-generated answer.
 @patch("app.main.run_analytics_agent")
 def test_analytics_api_success(mock_agent):

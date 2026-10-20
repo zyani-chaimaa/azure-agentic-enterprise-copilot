@@ -1,26 +1,73 @@
+/* Load Tailwind CSS utilities and its styling engine. */
 @import "tailwindcss";
 
+/* Define the visual identity shared by our entire application. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Core workspace colors. */
+  --background: #faf9f8;
+  --foreground: #17243a;
+  --surface: #ffffff;
+  --surface-muted: #f8fafd;
+  --border: #e2e8f0;
+
+  /* Brand and interactive elements. */
+  --primary: #722f43;
+  --primary-hover: #512132;
+  --primary-soft: #f5e9ed;
+
+  /* Semantic colors for our two AI capabilities. */
+  --analytics: #0d9488;
+  --analytics-soft: #f0fdfa;
+  --knowledge: #7c3aed;
+  --knowledge-soft: #f5f3ff;
+
+  /* Feedback and supporting colors. */
+  --warning: #f59e0b;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --text-muted: #64748b;
 }
 
+/* Expose our design tokens to Tailwind CSS. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-primary: var(--primary);
+  --color-analytics: var(--analytics);
+  --color-knowledge: var(--knowledge);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Use predictable sizing throughout the application. */
+* {
+  box-sizing: border-box;
 }
 
+/* Establish the light enterprise workspace appearance. */
+html {
+  color-scheme: light;
+}
+
+/* Apply the base application typography and background. */
 body {
+  margin: 0;
+  min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Make keyboard navigation visible and accessible. */
+:focus-visible:not(textarea) {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
+}
+
+/* Keep text selection consistent with our brand. */
+::selection {
+  background: #bfdbfe;
+  color: #17243a;
 }
