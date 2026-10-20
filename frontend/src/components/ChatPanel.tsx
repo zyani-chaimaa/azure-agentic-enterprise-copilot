@@ -15,7 +15,6 @@ import remarkGfm from "remark-gfm";
 // Import our authenticated copilot API function and its response type.
 import {
   askCopilot,
-  listConversationMessages,
   type CopilotResponse,
 } from "@/lib/api";
 
@@ -28,13 +27,7 @@ type Message = {
 };
 
 // Display and manage the main conversation experience.
-export default function ChatPanel({
-  conversationId,
-  onRequestLoadingChange,
-}: {
-  conversationId: string | null;
-  onRequestLoadingChange?: (loading: boolean) => void;
-}) {
+export default function ChatPanel() {
   // Access the signed-in user's Microsoft authentication client.
   const { instance } = useMsal();
 
@@ -47,105 +40,11 @@ export default function ChatPanel({
   // Track whether an AI request is in progress.
   const [loading, setLoading] = useState(false);
 
-  // Notify the parent workspace when an AI request starts or finishes.
-  useEffect(() => {
-    onRequestLoadingChange?.(loading);
-  }, [loading, onRequestLoadingChange]);
-
-  // Track whether saved conversation messages are being restored.
-  const [restoringHistory, setRestoringHistory] = useState(false);
-
   // Store any error that should be shown to the user.
   const [error, setError] = useState<string | null>(null);
 
   // Generate local message identifiers.
   const nextId = useRef(1);
-
-  // Restore saved messages whenever the selected conversation changes.
-  useEffect(() => {
-    // Ignore outdated responses after switching conversations.
-    let cancelled = false;
-
-    // Block message submission while saved messages are loading.
-    setRestoringHistory(Boolean(conversationId));
-
-    // Clear messages from the previously selected conversation.
-    setMessages([]);
-
-    // Clear errors and unsent text from the previous conversation.
-    setError(null);
-    setQuestion("");
-
-    // Do nothing when no persistent conversation is selected.
-    if (!conversationId) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    // Load the selected conversation's messages from Azure SQL.
-    async function restoreConversation() {
-      try {
-        // Retrieve messages through the authenticated FastAPI endpoint.
-        const savedMessages = await listConversationMessages(
-          instance,
-          conversationId!,
-        );
-
-        // Ignore results from an outdated conversation selection.
-        if (cancelled) return;
-
-        // Convert saved database messages into ChatPanel's existing format.
-        const restoredMessages: Message[] = savedMessages.map((message, index) => ({
-          // Generate a unique local identifier for React rendering.
-          id: index + 1,
-
-          // Preserve the original message role.
-          role: message.role,
-
-          // Preserve the original question or AI answer.
-          content: message.content,
-
-          // Reconstruct tool data for assistant messages.
-          result:
-            message.role === "assistant"
-              ? {
-                  answer: message.content,
-                  tool_calls: message.tool_results ?? [],
-                  response_id: "",
-                }
-              : undefined,
-        }));
-
-        // Restore the conversation in the chat interface.
-        setMessages(restoredMessages);
-
-        // Allow new questions after restoration succeeds.
-        setRestoringHistory(false);
-
-        // Continue generating unique local message identifiers.
-        nextId.current = restoredMessages.length + 1;
-      } catch (cause) {
-        // Show a readable error without exposing authentication tokens.
-        if (!cancelled) {
-          setRestoringHistory(false);
-          setError(
-            cause instanceof Error
-              ? `Unable to load conversation. ${cause.message}`
-              : "Unable to load conversation.",
-          );
-        }
-      }
-    }
-
-    // Start loading the selected conversation.
-    void restoreConversation();
-
-    // Cancel outdated results when the conversation changes.
-    return () => {
-      cancelled = true;
-    };
-  }, [conversationId, instance]);
 
   // Reference the end of the conversation for automatic scrolling.
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -164,7 +63,7 @@ export default function ChatPanel({
     const trimmed = text.trim();
 
     // Reject empty questions and prevent concurrent requests.
-    if (!trimmed || loading || restoringHistory) return;
+    if (!trimmed || loading) return;
 
     // Match the backend's maximum question length.
     if (trimmed.length > 2000) {
@@ -191,7 +90,7 @@ export default function ChatPanel({
 
     try {
       // Send the authenticated request to our unified FastAPI endpoint.
-      const result = await askCopilot(instance, trimmed, conversationId ?? undefined);
+      const result = await askCopilot(instance, trimmed);
 
       // Display the model's answer and the executed tool information.
       setMessages((previous) => [

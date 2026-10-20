@@ -1,16 +1,8 @@
 "use client";
 
 // Import React state to control the mobile navigation.
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import ChatPanel from "@/components/ChatPanel";
-
-// Import the authenticated conversation history API and its TypeScript type.
-import {
-  createConversation,
-  listConversations,
-  type ConversationHistoryItem,
-} from "@/lib/api";
-
 
 // Import the Microsoft authentication hook.
 import { useMsal } from "@azure/msal-react";
@@ -23,58 +15,6 @@ export default function Workspace() {
   // Track whether the mobile sidebar is visible.
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Track the conversation currently displayed in the chat panel.
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-
-  // Store conversations belonging to the authenticated Microsoft user.
-  const [conversations, setConversations] = useState<ConversationHistoryItem[]>([]);
-
-  // Track whether conversation history is being loaded.
-  const [historyLoading, setHistoryLoading] = useState(true);
-
-  // Store a readable error if conversation history cannot be loaded.
-  const [historyError, setHistoryError] = useState<string | null>(null);
-
-  // Load the signed-in user's conversations when the workspace opens.
-  useEffect(() => {
-    // Prevent state updates after the component unmounts.
-    let cancelled = false;
-
-    // Fetch the authenticated user's conversation history.
-    async function loadHistory() {
-      try {
-        // Retrieve conversations from the protected FastAPI endpoint.
-        const savedConversations = await listConversations(instance);
-
-        // Update state only while the component is mounted.
-        if (!cancelled) {
-          setConversations(savedConversations);
-          setHistoryError(null);
-        }
-      } catch (error) {
-        // Display a safe, readable error without exposing tokens.
-        if (!cancelled) {
-          setHistoryError(
-            error instanceof Error ? error.message : "Unable to load conversations.",
-          );
-        }
-      } finally {
-        // Finish loading if this effect is still active.
-        if (!cancelled) {
-          setHistoryLoading(false);
-        }
-      }
-    }
-
-    // Start loading conversation history.
-    void loadHistory();
-
-    // Ignore responses that arrive after unmounting.
-    return () => {
-      cancelled = true;
-    };
-  }, [instance]);
-
   // Get the current user's display name.
   const displayName = accounts[0]?.name || accounts[0]?.username || "User";
 
@@ -85,51 +25,13 @@ export default function Workspace() {
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
 
-  // Create a persistent conversation for the signed-in user.
-  async function startNewConversation() {
-    // Prevent repeated clicks while a conversation is being created.
-    if (historyLoading) return;
+  // Start a fresh chat without saving anything to Azure SQL.
+  function startNewChat() {
+    // Ask ChatPanel to clear its current messages.
+    window.dispatchEvent(new Event("nexora:new-conversation"));
 
-    // Show the loading state during creation.
-    setHistoryLoading(true);
-
-    try {
-      // Create a conversation through our authenticated FastAPI endpoint.
-      const conversation = await createConversation(instance);
-
-      // Make the new conversation active in the chat panel.
-      setActiveConversationId(conversation.conversation_id);
-
-      // Add the newly created conversation to the top of the sidebar.
-      const now = new Date().toISOString();
-
-      // Update the displayed conversation list.
-      setConversations((previous) => [
-        {
-          ...conversation,
-          created_at: now,
-          updated_at: now,
-        },
-        ...previous,
-      ]);
-
-      // Clear any previous history error.
-      setHistoryError(null);
-
-      // Reset the chat panel to a new conversation.
-      window.dispatchEvent(new Event("nexora:new-conversation"));
-
-      // Close the mobile sidebar after creating a conversation.
-      setSidebarOpen(false);
-    } catch (error) {
-      // Display a readable error if conversation creation fails.
-      setHistoryError(
-        error instanceof Error ? error.message : "Unable to create conversation.",
-      );
-    } finally {
-      // Restore the normal sidebar state.
-      setHistoryLoading(false);
-    }
+    // Close the navigation on smaller screens.
+    setSidebarOpen(false);
   }
 
   // Sign the user out of Microsoft Entra ID.
@@ -171,73 +73,13 @@ export default function Workspace() {
         <nav aria-label="Workspace navigation" className="flex-1 px-4 py-6">
           <button
             type="button"
-            onClick={() => void startNewConversation()}
+            onClick={startNewChat}
             className="flex w-full items-center gap-3 rounded-xl bg-[#722F43] px-4 py-3 text-left text-sm font-semibold text-white transition hover:bg-[#512132]"
           >
             <span className="text-xl leading-none">+</span>
-            New conversation
+            New chat
           </button>
 
-          {/* Display the authenticated user's saved conversations. */}
-          <div className="mt-8">
-            {/* Label the conversation history section. */}
-            <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
-              Recent conversations
-            </p>
-
-            {/* Show a loading indicator while retrieving history. */}
-            {historyLoading && (
-              <p className="px-3 text-sm text-[#64748B]">
-                Loading conversations...
-              </p>
-            )}
-
-            {/* Display a readable error if history cannot be loaded. */}
-            {historyError && (
-              <p role="alert" className="px-3 text-sm text-red-600">
-                {historyError}
-              </p>
-            )}
-
-            {/* Explain when the user has no saved conversations. */}
-            {!historyLoading && !historyError && conversations.length === 0 && (
-              <p className="px-3 text-sm text-[#94A3B8]">
-                No conversations yet
-              </p>
-            )}
-
-            {/* Render the user's saved conversation titles. */}
-            {!historyLoading && !historyError && (
-              <div className="space-y-1">
-                {conversations.map((conversation) => (
-                  <button
-                    key={conversation.conversation_id}
-                    type="button"
-                    onClick={() => {
-                      // Select the conversation in the workspace.
-                      setActiveConversationId(conversation.conversation_id);
-
-                      // Close the navigation on mobile.
-                      setSidebarOpen(false);
-                    }}
-                    className={`block w-full truncate rounded-lg px-3 py-2 text-left text-sm transition hover:bg-[#F5E9ED] ${
-                      activeConversationId === conversation.conversation_id
-                        ? "bg-[#F5E9ED] font-semibold text-[#722F43]"
-                        : "text-[#475569]"
-                    }`}
-                    title={conversation.title}
-                    aria-current={
-                      activeConversationId === conversation.conversation_id
-                        ? "page"
-                        : undefined
-                    }
-                  >
-                    {conversation.title}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </nav>
 
         {/* Authenticated account area. */}
@@ -265,7 +107,7 @@ export default function Workspace() {
         {/* Main conversational experience. */}
         <main className="flex min-h-0 flex-1 flex-col items-center px-5 py-6 md:px-9">
           {/* Render the authenticated, interactive AI conversation. */}
-          <ChatPanel conversationId={activeConversationId} />
+          <ChatPanel />
         </main>
       </div>
     </div>
