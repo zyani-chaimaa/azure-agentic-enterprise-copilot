@@ -122,18 +122,38 @@ def index_multimodal_chunks(chunks: list[MultimodalChunk]) -> int:
                 # Continue with the next attempt.
                 continue
 
-            # Reject missing or unsuccessful upload results.
-            if (
-                not results
-                or len(results) != 1
-                or not results[0].succeeded
-            ):
+            # Reject missing or malformed upload responses.
+            if not results or len(results) != 1:
                 raise RuntimeError(
                     f"Failed to index multimodal chunk: {chunk.chunk_id}"
                 )
 
+            # Read the result for this individual document.
+            result = results[0]
+
             # Stop retrying after a successful upload.
-            break
+            if result.succeeded:
+                break
+
+            # Read the failure status when Azure provides one.
+            status_code = getattr(result, "status_code", None)
+
+            # Reject permanent or unknown failures immediately.
+            if status_code not in retryable_statuses:
+                raise RuntimeError(
+                    f"Failed to index multimodal chunk: "
+                    f"{chunk.chunk_id} (status: {status_code})"
+                )
+
+            # Stop after the configured number of attempts.
+            if attempt == max_attempts:
+                raise RuntimeError(
+                    f"Failed to index multimodal chunk after "
+                    f"{max_attempts} attempts: {chunk.chunk_id}"
+                )
+
+            # Wait before retrying a temporary result-level failure.
+            sleep(2 ** (attempt - 1))
 
         # Update the successful upload count.
         uploaded += 1

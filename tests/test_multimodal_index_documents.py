@@ -457,3 +457,163 @@ def test_does_not_retry_permanent_upload_errors(monkeypatch, status_code):
 
     # Confirm that exactly one upload attempt occurred.
     assert attempts == ["report-p1-c0"]
+
+
+# Verify recovery when Azure reports a transient failure in its upload result.
+def test_retries_transient_upload_result(monkeypatch):
+
+    # Configure mocked Azure settings, credentials, and embeddings.
+    mock_azure(monkeypatch)
+
+    # Track how many upload attempts occur.
+    attempts = []
+
+    # Simulate Azure returning a failed result before succeeding.
+    class TransientResultSearchClient:
+
+        # Accept configuration without connecting to Azure.
+        def __init__(self, endpoint, index_name, credential):
+            pass
+
+        # Return a transient failure on the first upload.
+        def upload_documents(self, documents):
+
+            # Record the chunk identifier for this attempt.
+            attempts.append(documents[0]["chunk_id"])
+
+            # Simulate Azure reporting HTTP 503 in the upload result.
+            if len(attempts) == 1:
+                return [
+                    SimpleNamespace(
+                        succeeded=False,
+                        status_code=503,
+                    )
+                ]
+
+            # Simulate a successful retry.
+            return [
+                SimpleNamespace(
+                    succeeded=True,
+                    status_code=200,
+                )
+            ]
+
+    # Replace the real Azure Search client with our mock.
+    monkeypatch.setattr(
+        indexer,
+        "SearchClient",
+        TransientResultSearchClient,
+    )
+
+    # Disable retry delays during testing.
+    monkeypatch.setattr(indexer, "sleep", lambda seconds: None)
+
+    # Attempt to index the document.
+    count = indexer.index_multimodal_chunks([make_chunk()])
+
+    # Confirm that the document was eventually indexed.
+    assert count == 1
+
+    # Confirm that exactly two attempts used the same chunk ID.
+    assert attempts == ["report-p1-c0", "report-p1-c0"]
+
+
+# Verify that repeated transient upload results exhaust the retry budget.
+def test_stops_after_exhausting_upload_result_retries(monkeypatch):
+
+    # Configure mocked Azure dependencies.
+    mock_azure(monkeypatch)
+
+    # Track upload attempts.
+    attempts = []
+
+    # Simulate an Azure service that always rejects the upload temporarily.
+    class FailingResultSearchClient:
+
+        # Accept client configuration without making network requests.
+        def __init__(self, endpoint, index_name, credential):
+            pass
+
+        # Return a transient failure for every attempted upload.
+        def upload_documents(self, documents):
+
+            # Record the submitted chunk identifier.
+            attempts.append(documents[0]["chunk_id"])
+
+            # Simulate an unsuccessful HTTP 503 document result.
+            return [
+                SimpleNamespace(
+                    succeeded=False,
+                    status_code=503,
+                )
+            ]
+
+    # Replace the real Azure client with our mock.
+    monkeypatch.setattr(
+        indexer,
+        "SearchClient",
+        FailingResultSearchClient,
+    )
+
+    # Disable retry delays during testing.
+    monkeypatch.setattr(indexer, "sleep", lambda seconds: None)
+
+    # Verify that the retry budget is eventually exhausted.
+    with pytest.raises(RuntimeError, match="after 3 attempts"):
+        indexer.index_multimodal_chunks([make_chunk()])
+
+    # Verify exactly three attempts using the same chunk identifier.
+    assert attempts == ["report-p1-c0"] * 3
+
+
+# Verify that permanent upload-result failures are not retried.
+@pytest.mark.parametrize("status_code", [400, 403])
+def test_does_not_retry_permanent_upload_results(monkeypatch, status_code):
+
+    # Configure mocked Azure dependencies.
+    mock_azure(monkeypatch)
+
+    # Track how many upload attempts occur.
+    attempts = []
+
+    # Simulate Azure returning a permanent document-level failure.
+    class PermanentResultSearchClient:
+
+        # Accept configuration without connecting to Azure.
+        def __init__(self, endpoint, index_name, credential):
+            pass
+
+        # Return a permanent failure for every upload attempt.
+        def upload_documents(self, documents):
+
+            # Record the submitted chunk identifier.
+            attempts.append(documents[0]["chunk_id"])
+
+            # Return the unsuccessful document result.
+            return [
+                SimpleNamespace(
+                    succeeded=False,
+                    status_code=status_code,
+                )
+            ]
+
+    # Replace the real Azure Search client with our mock.
+    monkeypatch.setattr(
+        indexer,
+        "SearchClient",
+        PermanentResultSearchClient,
+    )
+
+    # Fail the test if the implementation attempts to wait.
+    def unexpected_sleep(seconds):
+        raise AssertionError("Permanent failures must not be retried.")
+
+    # Replace the retry delay with our assertion.
+    monkeypatch.setattr(indexer, "sleep", unexpected_sleep)
+
+    # Verify that the permanent failure is reported.
+    with pytest.raises(RuntimeError, match="Failed to index"):
+        indexer.index_multimodal_chunks([make_chunk()])
+
+    # Verify that exactly one upload attempt occurred.
+    assert attempts == ["report-p1-c0"]
