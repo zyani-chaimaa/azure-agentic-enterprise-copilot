@@ -1,6 +1,7 @@
 # Import the Azure identity provider for passwordless authentication.
 import re
 from time import sleep
+from pathlib import Path
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential
@@ -16,10 +17,15 @@ from rag.models.multimodal_chunk import MultimodalChunk
 
 # Import our tested multimodal embedding adapter.
 from rag.ingestion.multimodal_embedder import embed_multimodal_chunk
+from rag.ingestion.multimodal_checkpoint import load_checkpoint, save_checkpoint
 
 
 # Embed and index validated multimodal chunks in Azure AI Search v2.
-def index_multimodal_chunks(chunks: list[MultimodalChunk]) -> int:
+def index_multimodal_chunks(
+    chunks: list[MultimodalChunk],
+    checkpoint_path: str | Path | None = None,
+    fingerprint: str | None = None,
+) -> int:
 
     # Reject an empty collection before connecting to Azure.
     if not chunks:
@@ -53,6 +59,21 @@ def index_multimodal_chunks(chunks: list[MultimodalChunk]) -> int:
         # Remember this key for subsequent duplicate detection.
         seen_chunk_ids.add(chunk.chunk_id)
 
+    # Require every chunk in a resumable batch to belong to one document.
+    if checkpoint_path is not None:
+
+        # Identify the document associated with the checkpoint.
+        expected_document_id = chunks[0].document_id
+
+        # Reject chunks belonging to another document before Azure calls.
+        if any(
+            chunk.document_id != expected_document_id
+            for chunk in chunks
+        ):
+            raise ValueError(
+                "All chunks in a resumable batch must belong to the same document."
+            )
+
     # Require a configured Azure AI Search endpoint.
     if not settings.azure_search_endpoint:
         raise ValueError("AZURE_SEARCH_ENDPOINT is not configured.")
@@ -62,6 +83,16 @@ def index_multimodal_chunks(chunks: list[MultimodalChunk]) -> int:
         raise ValueError(
             "Multimodal index must differ from the existing v1 index."
         )
+
+    # Require a fingerprint whenever checkpoint recovery is enabled.
+    if checkpoint_path is not None and not fingerprint:
+        raise ValueError("A fingerprint is required for checkpoint recovery.")
+
+    # Load completed chunk IDs before connecting to Azure.
+    completed = (
+        load_checkpoint(checkpoint_path, chunks[0].document_id, fingerprint)
+        if checkpoint_path is not None else set()
+    )
 
     # Create credentials using Azure CLI or Managed Identity.
     credential = DefaultAzureCredential(
@@ -80,6 +111,10 @@ def index_multimodal_chunks(chunks: list[MultimodalChunk]) -> int:
 
     # Process chunks individually to respect embedding quotas.
     for chunk in chunks:
+
+        # Skip chunks confirmed as completed in the checkpoint.
+        if chunk.chunk_id in completed:
+            continue
 
         # Generate an embedding and preserve all source metadata.
         search_document = embed_multimodal_chunk(chunk)
@@ -154,6 +189,16 @@ def index_multimodal_chunks(chunks: list[MultimodalChunk]) -> int:
 
             # Wait before retrying a temporary result-level failure.
             sleep(2 ** (attempt - 1))
+
+        # Persist progress only after Azure confirms a successful upload.
+        if checkpoint_path is not None:
+            completed.add(chunk.chunk_id)
+            save_checkpoint(
+                checkpoint_path,
+                chunks[0].document_id,
+                sorted(completed),
+                fingerprint=fingerprint,
+            )
 
         # Update the successful upload count.
         uploaded += 1

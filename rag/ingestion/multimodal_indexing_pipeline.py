@@ -10,6 +10,9 @@ from rag.ingestion.multimodal_chunker import chunk_multimodal_elements
 # Import our tested Azure AI Search v2 indexing service.
 from rag.ingestion.multimodal_index_documents import index_multimodal_chunks
 
+# Import deterministic PDF fingerprint generation.
+from rag.ingestion.multimodal_checkpoint import compute_document_fingerprint
+
 
 # Extract, chunk, embed, and index one multimodal PDF.
 def index_multimodal_pdf(
@@ -18,6 +21,7 @@ def index_multimodal_pdf(
     source_uri: str,
     chunk_size: int = 1000,
     overlap: int = 150,
+    checkpoint_path: str | Path | None = None,
 ) -> int:
 
     # Require a nonempty PDF path.
@@ -43,6 +47,17 @@ def index_multimodal_pdf(
     if path.suffix.lower() != ".pdf":
         raise ValueError("Only PDF files are supported.")
 
+    # Calculate a fingerprint only when checkpoint recovery is enabled.
+    fingerprint = (
+        compute_document_fingerprint(
+            path,
+            chunk_size=chunk_size,
+            overlap=overlap,
+            processing_version="v1",
+        )
+        if checkpoint_path is not None else None
+    )
+
     # Extract validated text, tables, and figure evidence.
     elements = ingest_multimodal_pdf(
         file_path=str(path),
@@ -66,7 +81,18 @@ def index_multimodal_pdf(
         raise ValueError("No multimodal chunks were generated.")
 
     # Embed and upload chunks exclusively to Azure AI Search v2.
-    uploaded = index_multimodal_chunks(chunks)
+    if checkpoint_path is not None:
+
+        # Enable checkpoint recovery with the verified PDF fingerprint.
+        uploaded = index_multimodal_chunks(
+            chunks,
+            checkpoint_path=checkpoint_path,
+            fingerprint=fingerprint,
+        )
+    else:
+
+        # Preserve the original behavior when recovery is disabled.
+        uploaded = index_multimodal_chunks(chunks)
 
     # Return the number of successfully indexed chunks.
     return uploaded

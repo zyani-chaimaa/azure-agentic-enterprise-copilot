@@ -198,3 +198,69 @@ def test_propagates_indexing_failure(tmp_path, monkeypatch):
             "report",
             "documents/report.pdf",
         )
+
+
+# Verify that the PDF pipeline forwards a fingerprint for resumable indexing.
+def test_pipeline_passes_checkpoint_and_fingerprint(monkeypatch, tmp_path):
+
+    # Import the pipeline module so its dependencies can be replaced.
+    from rag.ingestion import multimodal_indexing_pipeline as pipeline
+
+    # Create a temporary PDF file without contacting Azure.
+    pdf_path = tmp_path / "report.pdf"
+
+    # Write test bytes; the mocked extractor will not parse the file.
+    pdf_path.write_bytes(b"Mock PDF contents")
+
+    # Define a checkpoint path for the indexing operation.
+    checkpoint_path = tmp_path / "report-checkpoint.json"
+
+    # Capture the arguments passed to the indexing service.
+    captured = {}
+
+    # Replace PDF extraction with one simulated evidence element.
+    monkeypatch.setattr(
+        pipeline,
+        "ingest_multimodal_pdf",
+        lambda **kwargs: ["mock-element"],
+    )
+
+    # Replace chunking with one simulated searchable chunk.
+    monkeypatch.setattr(
+        pipeline,
+        "chunk_multimodal_elements",
+        lambda **kwargs: ["mock-chunk"],
+    )
+
+    # Define a fake indexing service that records its arguments.
+    def fake_index(chunks, **kwargs):
+
+        # Remember the chunks and recovery configuration.
+        captured["chunks"] = chunks
+        captured.update(kwargs)
+
+        # Simulate one successful upload.
+        return 1
+
+    # Replace the real indexing service with our fake.
+    monkeypatch.setattr(pipeline, "index_multimodal_chunks", fake_index)
+
+    # Execute the PDF pipeline with checkpoint recovery enabled.
+    uploaded = pipeline.index_multimodal_pdf(
+        file_path=str(pdf_path),
+        document_id="report",
+        source_uri="documents/report.pdf",
+        checkpoint_path=checkpoint_path,
+    )
+
+    # Verify that one chunk was reported as uploaded.
+    assert uploaded == 1
+
+    # Verify that the checkpoint location was forwarded.
+    assert captured["checkpoint_path"] == checkpoint_path
+
+    # Verify that a SHA-256 fingerprint was provided.
+    assert isinstance(captured["fingerprint"], str)
+
+    # SHA-256 hexadecimal fingerprints contain 64 characters.
+    assert len(captured["fingerprint"]) == 64
