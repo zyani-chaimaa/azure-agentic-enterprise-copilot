@@ -187,3 +187,144 @@ def test_skip_table_without_page():
 
     # Avoid producing evidence with an unsupported citation.
     assert elements == []
+
+
+# Import patch to simulate image retrieval and storage.
+from unittest.mock import patch
+
+# Import the figure converter being tested.
+from rag.ingestion.layout_converter import convert_figures
+
+
+# Build a simulated Document Intelligence figure.
+def make_figure(figure_id="1.1", pages=(1,), caption="Revenue chart"):
+
+    # Create the figure's source-page references.
+    regions = [
+        SimpleNamespace(page_number=page)
+        for page in pages
+    ]
+
+    # Create a caption object when caption text is available.
+    caption_object = (
+        SimpleNamespace(content=caption)
+        if caption is not None
+        else None
+    )
+
+    # Return simulated Azure figure metadata.
+    return SimpleNamespace(
+        id=figure_id,
+        bounding_regions=regions,
+        caption=caption_object,
+    )
+
+
+# Convert figures while replacing Azure operations with mocks.
+def convert_test_figures(figures):
+
+    # Simulate the document analysis result.
+    result = SimpleNamespace(figures=figures)
+
+    # Replace the actual figure download with a mock.
+    with patch(
+        "rag.ingestion.figure_extractor.retrieve_figure_image",
+        return_value=b"image-data",
+    ) as mock_retrieve:
+
+        # Replace the actual Blob Storage upload with a mock.
+        with patch(
+            "rag.ingestion.blob_storage.upload_figure_image",
+            return_value="https://example.blob.core.windows.net/figure.png",
+        ) as mock_upload:
+
+            # Convert the simulated figures.
+            elements = convert_figures(
+                result=result,
+                operation_id="operation-123",
+                document_id="REPORT-001",
+                filename="annual_report.pdf",
+                source_uri="documents/annual_report.pdf",
+            )
+
+            # Return evidence and mocks for verification.
+            return elements, mock_retrieve, mock_upload
+
+
+# Verify that a captioned figure becomes searchable evidence.
+def test_convert_captioned_figure():
+
+    # Convert a figure from page five.
+    elements, retrieve, upload = convert_test_figures([
+        make_figure(pages=(5,), caption="Revenue increased by 12%.")
+    ])
+
+    # Verify the figure's searchable caption and source page.
+    assert len(elements) == 1
+    assert elements[0].content_type == "figure"
+    assert elements[0].content == "Revenue increased by 12%."
+    assert elements[0].page_number == 5
+
+    # Verify that the stored image URI is preserved.
+    assert elements[0].asset_uri.endswith("figure.png")
+
+    # Verify that image retrieval uses the Azure identifiers.
+    retrieve.assert_called_once_with(
+        operation_id="operation-123",
+        figure_id="1.1",
+    )
+
+    # Verify that the original image is uploaded with source metadata.
+    upload.assert_called_once_with(
+        image_bytes=b"image-data",
+        document_id="REPORT-001",
+        page_number=5,
+        figure_id="1.1",
+    )
+
+
+# Verify that figures without captions remain traceable.
+def test_convert_figure_without_caption():
+
+    # Convert a figure with no caption.
+    elements, _, _ = convert_test_figures([
+        make_figure(caption=None)
+    ])
+
+    # Verify that a neutral searchable description is provided.
+    assert len(elements) == 1
+    assert elements[0].content == "Figure 1.1"
+
+
+# Verify that multi-page figures are downloaded and uploaded only once.
+def test_convert_multipage_figure():
+
+    # Convert one figure referencing pages three and four.
+    elements, retrieve, upload = convert_test_figures([
+        make_figure(pages=(4, 3, 4))
+    ])
+
+    # Verify that evidence references both distinct pages.
+    assert [element.page_number for element in elements] == [3, 4]
+
+    # Verify that the image is retrieved and uploaded only once.
+    retrieve.assert_called_once()
+    upload.assert_called_once()
+
+
+# Verify that invalid figure metadata does not trigger Azure operations.
+def test_convert_figures_with_invalid_metadata():
+
+    # Supply figures without an ID or valid page reference.
+    elements, retrieve, upload = convert_test_figures([
+        make_figure(figure_id=None),
+        make_figure(pages=()),
+        make_figure(pages=(0, -1)),
+    ])
+
+    # Verify that no unsupported evidence is produced.
+    assert elements == []
+
+    # Verify that invalid figures do not trigger Azure requests.
+    retrieve.assert_not_called()
+    upload.assert_not_called()

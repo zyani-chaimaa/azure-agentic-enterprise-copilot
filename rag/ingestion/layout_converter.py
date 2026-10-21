@@ -146,3 +146,107 @@ def convert_tables(
 
     # Return all converted tables.
     return elements
+
+
+# Convert extracted PDF figures into traceable multimodal evidence.
+def convert_figures(
+    result,
+    operation_id: str,
+    document_id: str,
+    filename: str,
+    source_uri: str,
+) -> list[MultimodalElement]:
+
+    # Import image retrieval only when figure conversion is requested.
+    from rag.ingestion.figure_extractor import retrieve_figure_image
+
+    # Import the Azure Blob Storage upload function.
+    from rag.ingestion.blob_storage import upload_figure_image
+
+    # Collect the validated figure evidence.
+    elements = []
+
+    # Process each figure identified by Document Intelligence.
+    for index, figure in enumerate(result.figures or []):
+
+        # Read the figure's unique Azure identifier.
+        figure_id = getattr(figure, "id", None)
+
+        # Skip figures without a retrievable identifier.
+        if not figure_id:
+            continue
+
+        # Retrieve the figure's original page references.
+        regions = figure.bounding_regions or []
+
+        # Skip figures without a reliable source page.
+        if not regions:
+            continue
+
+        # Collect distinct, valid source page numbers.
+        page_numbers = sorted({
+            region.page_number
+            for region in regions
+            if isinstance(region.page_number, int)
+            and not isinstance(region.page_number, bool)
+            and region.page_number >= 1
+        })
+
+        # Skip figures with no valid source page.
+        if not page_numbers:
+            continue
+
+        # Read the caption when Azure provides one.
+        caption = getattr(figure, "caption", None)
+
+        # Extract caption text without assuming a caption exists.
+        caption_text = (
+            (getattr(caption, "content", None) or "").strip()
+        )
+
+        # Use a neutral description when no caption is available.
+        content = caption_text or f"Figure {figure_id}"
+
+        # Retrieve the image only once for this figure.
+        image_bytes = retrieve_figure_image(
+            operation_id=operation_id,
+            figure_id=figure_id,
+        )
+
+        # Associate the image with its first referenced page.
+        primary_page = page_numbers[0]
+
+        # Upload the image to the configured private storage container.
+        asset_uri = upload_figure_image(
+            image_bytes=image_bytes,
+            document_id=document_id,
+            page_number=primary_page,
+            figure_id=figure_id,
+        )
+
+        # Create evidence for each page referenced by the figure.
+        for page_number in page_numbers:
+
+            # Build a stable, page-specific evidence identifier.
+            element_id = (
+                f"{document_id}-p{page_number}-figure-{index}"
+            )
+
+            # Validate the extracted figure against NEXORA's model.
+            element = MultimodalElement(
+                element_id=element_id,
+                document_id=document_id,
+                filename=filename,
+                source_uri=source_uri,
+                page_number=page_number,
+                content_type="figure",
+                content=content,
+                asset_uri=asset_uri,
+                extraction_method="document-intelligence-layout",
+            )
+
+            # Add the figure evidence to the collection.
+            elements.append(element)
+
+    # Return the converted figure evidence.
+    return elements
