@@ -33,3 +33,40 @@ def create_document_intelligence_client() -> DocumentIntelligenceClient:
 
     # Return the client for use by our document extraction functions.
     return client
+
+
+# Analyze a local PDF using Azure AI Document Intelligence.
+def analyze_pdf_layout(file_path: str):
+
+    # Import Path to validate the supplied file location.
+    from pathlib import Path
+
+    # Convert the supplied filename into a filesystem path.
+    path = Path(file_path)
+
+    # Reject missing files and directories.
+    if not path.is_file():
+        raise FileNotFoundError(f"PDF file not found: {path}")
+
+    # Reject unsupported file extensions.
+    if path.suffix.lower() != ".pdf":
+        raise ValueError("Only PDF files are supported.")
+
+    # Create the authenticated Azure Document Intelligence client.
+    client = create_document_intelligence_client()
+
+    # Open the PDF as binary data and close it automatically afterward.
+    with path.open("rb") as pdf_file:
+
+        # Submit the document to the configured layout analysis model.
+        poller = client.begin_analyze_document(
+            model_id=settings.azure_document_intelligence_model,
+            body=pdf_file,
+            content_type="application/pdf",
+        )
+
+        # Wait for Azure to complete the document analysis.
+        result = poller.result()
+
+    # Return the structured analysis result for further processing.
+    return result

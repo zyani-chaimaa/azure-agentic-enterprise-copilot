@@ -60,3 +60,82 @@ def test_document_intelligence_client_configuration():
 
                 # Verify that the factory returns the created client.
                 assert result is mock_client.return_value
+
+
+# Import the PDF analysis function for validation testing.
+from rag.ingestion.layout_extractor import analyze_pdf_layout
+
+
+# Verify that a nonexistent PDF is rejected.
+def test_analyze_pdf_missing_file(tmp_path):
+
+    # Create a path that does not point to an existing file.
+    missing_pdf = tmp_path / "missing.pdf"
+
+    # Confirm that analysis fails before contacting Azure.
+    with pytest.raises(FileNotFoundError, match="PDF file not found"):
+        analyze_pdf_layout(str(missing_pdf))
+
+
+# Verify that unsupported file formats are rejected.
+def test_analyze_pdf_rejects_non_pdf(tmp_path):
+
+    # Create a real text file in pytest's temporary directory.
+    text_file = tmp_path / "example.txt"
+
+    # Write sample content into the temporary file.
+    text_file.write_text("This is not a PDF.")
+
+    # Confirm that only PDF files are accepted.
+    with pytest.raises(ValueError, match="Only PDF files are supported"):
+        analyze_pdf_layout(str(text_file))
+
+
+# Verify that PDF analysis sends the correct request to Azure.
+def test_analyze_pdf_success(tmp_path):
+
+    # Create a temporary PDF file for testing.
+    pdf_path = tmp_path / "sample.pdf"
+
+    # Write minimal test bytes without requiring a real PDF parser.
+    pdf_path.write_bytes(b"%PDF-1.4\n%%EOF")
+
+    # Replace the Azure client factory with a mock.
+    with patch(
+        "rag.ingestion.layout_extractor.create_document_intelligence_client"
+    ) as mock_factory:
+
+        # Obtain the simulated Azure client.
+        mock_client = mock_factory.return_value
+
+        # Configure the simulated analysis result.
+        expected_result = sentinel.analysis_result
+
+        # Make the simulated poller return that result.
+        mock_client.begin_analyze_document.return_value.result.return_value = (
+            expected_result
+        )
+
+        # Analyze the temporary PDF using our function.
+        result = analyze_pdf_layout(str(pdf_path))
+
+        # Verify that Azure analysis was requested exactly once.
+        mock_client.begin_analyze_document.assert_called_once()
+
+        # Inspect the arguments passed to the Azure SDK.
+        request = mock_client.begin_analyze_document.call_args
+
+        # Verify that NEXORA uses the configured layout model.
+        assert request.kwargs["model_id"] == "prebuilt-layout"
+
+        # Verify that the PDF content type is correctly specified.
+        assert request.kwargs["content_type"] == "application/pdf"
+
+        # Verify that the PDF file was supplied as binary input.
+        assert request.kwargs["body"].mode == "rb"
+
+        # Verify that the PDF file is closed after analysis.
+        assert request.kwargs["body"].closed
+
+        # Verify that the function returns the Azure analysis result.
+        assert result is expected_result
