@@ -6,3 +6,6 @@ pydantic-settings
 azure-storage-blob
 azure-search-documents
 pymupdf
+
+# Azure AI Document Intelligence for PDF layout, tables, and figures.
+azure-ai-documentintelligence
