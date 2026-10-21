@@ -220,3 +220,70 @@ def test_rejects_missing_upload_results(monkeypatch):
     # Verify that an empty response cannot count as success.
     with pytest.raises(RuntimeError, match="Failed to index"):
         indexer.index_multimodal_chunks([make_chunk()])
+
+
+# Verify that unsupported characters in Azure Search keys are rejected.
+@pytest.mark.parametrize(
+    "invalid_id",
+    [
+        "report 2025-p1-c0",
+        "report/2025-p1-c0",
+        "report:p1:c0",
+        "report.p1.c0",
+    ],
+)
+def test_rejects_invalid_chunk_ids(monkeypatch, invalid_id):
+
+    # Configure the mocked Azure services.
+    captured = mock_azure(monkeypatch)
+
+    # Create a valid chunk and replace its identifier.
+    chunk = make_chunk().model_copy(
+        update={"chunk_id": invalid_id}
+    )
+
+    # Verify that the invalid key is rejected.
+    with pytest.raises(ValueError, match="Invalid Azure AI Search chunk_id"):
+        indexer.index_multimodal_chunks([chunk])
+
+    # Verify that no Azure Search client was created.
+    assert "index_name" not in captured
+
+
+# Verify that duplicate chunk IDs cannot overwrite one another.
+def test_rejects_duplicate_chunk_ids(monkeypatch):
+
+    # Configure the mocked Azure services.
+    captured = mock_azure(monkeypatch)
+
+    # Create two chunks with the same document key.
+    first = make_chunk()
+    second = make_chunk()
+
+    # Verify that the duplicate is rejected.
+    with pytest.raises(ValueError, match="Duplicate multimodal chunk_id"):
+        indexer.index_multimodal_chunks([first, second])
+
+    # Verify that indexing stopped before Azure client creation.
+    assert "index_name" not in captured
+
+
+# Verify that supported characters remain valid.
+def test_accepts_valid_chunk_ids(monkeypatch):
+
+    # Configure the mocked Azure services.
+    captured = mock_azure(monkeypatch)
+
+    # Create a chunk using letters, numbers, underscores, hyphens, and equals.
+    chunk = make_chunk().model_copy(
+        update={"chunk_id": "Microsoft_2025-p12-table=2-c0"}
+    )
+
+    # Index the chunk using mocked Azure services.
+    uploaded = indexer.index_multimodal_chunks([chunk])
+
+    # Verify that the document was accepted.
+    assert uploaded == 1
+
+    # Verify that the intended key was preserved.
+    assert captured["uploads"][0]["chunk_id"] == chunk.chunk_id

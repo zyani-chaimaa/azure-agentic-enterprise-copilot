@@ -1,4 +1,6 @@
 # Import the Azure identity provider for passwordless authentication.
+import re
+
 from azure.identity import DefaultAzureCredential
 
 # Import the Azure AI Search document upload client.
@@ -27,6 +29,27 @@ def index_multimodal_chunks(chunks: list[MultimodalChunk]) -> int:
         # Reject objects that are not validated multimodal chunks.
         if not isinstance(chunk, MultimodalChunk):
             raise TypeError("Every item must be a MultimodalChunk.")
+
+    # Validate document keys before creating Azure credentials.
+    seen_chunk_ids = set()
+
+    # Inspect each chunk identifier for Azure AI Search compatibility.
+    for chunk in chunks:
+
+        # Require a key containing only supported characters.
+        if not re.fullmatch(r"[A-Za-z0-9_=-]+", chunk.chunk_id):
+            raise ValueError(
+                f"Invalid Azure AI Search chunk_id: {chunk.chunk_id}"
+            )
+
+        # Reject duplicate keys to prevent accidental overwrites.
+        if chunk.chunk_id in seen_chunk_ids:
+            raise ValueError(
+                f"Duplicate multimodal chunk_id: {chunk.chunk_id}"
+            )
+
+        # Remember this key for subsequent duplicate detection.
+        seen_chunk_ids.add(chunk.chunk_id)
 
     # Require a configured Azure AI Search endpoint.
     if not settings.azure_search_endpoint:
