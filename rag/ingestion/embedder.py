@@ -2,7 +2,7 @@
 import time
 
 # Import the OpenAI exception raised when a request is rate-limited.
-from openai import RateLimitError
+from openai import APIConnectionError, RateLimitError
 
 # Import our existing authenticated Microsoft Foundry client.
 from app.model_client import create_model_client
@@ -45,8 +45,8 @@ def embed_text(text: str) -> list[float]:
             # Return the embedding vector.
             return vector
 
-        # Catch Azure's rate-limit response.
-        except RateLimitError:
+        # Catch temporary Azure connection failures and rate limits.
+        except (APIConnectionError, RateLimitError):
 
             # Raise the error after the final unsuccessful attempt.
             if attempt == 4:

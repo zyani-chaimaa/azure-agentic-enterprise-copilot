@@ -97,7 +97,7 @@ def test_upload_figure_image_success():
 
         # Verify that the expected container and path were selected.
         mock_service.get_blob_client.assert_called_once_with(
-            container="enterprise-documents",
+            container="multimodal-figures",
             blob="figures/REPORT-001/page-5/figure-1.png",
         )
 
