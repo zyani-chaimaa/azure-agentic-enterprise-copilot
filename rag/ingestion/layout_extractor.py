@@ -36,7 +36,7 @@ def create_document_intelligence_client() -> DocumentIntelligenceClient:
 
 
 # Analyze a local PDF using Azure AI Document Intelligence.
-def analyze_pdf_layout(file_path: str):
+def analyze_pdf_layout(file_path: str, include_operation_id: bool = False):
 
     # Import Path to validate the supplied file location.
     from pathlib import Path
@@ -63,10 +63,19 @@ def analyze_pdf_layout(file_path: str):
             model_id=settings.azure_document_intelligence_model,
             body=pdf_file,
             content_type="application/pdf",
+            output=["figures"],
         )
 
         # Wait for Azure to complete the document analysis.
         result = poller.result()
 
-    # Return the structured analysis result for further processing.
+    # Return both the analysis result and operation ID when requested.
+    if include_operation_id:
+        # Read the identifier exposed by Azure's public poller property.
+        operation_id = poller.details["operation_id"]
+
+        # Return both values for subsequent figure retrieval.
+        return result, operation_id
+
+    # Preserve the original behavior for existing callers.
     return result

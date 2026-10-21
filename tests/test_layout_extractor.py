@@ -131,6 +131,9 @@ def test_analyze_pdf_success(tmp_path):
         # Verify that the PDF content type is correctly specified.
         assert request.kwargs["content_type"] == "application/pdf"
 
+        # Verify that Azure is asked to generate extractable figure images.
+        assert request.kwargs["output"] == ["figures"]
+
         # Verify that the PDF file was supplied as binary input.
         assert request.kwargs["body"].mode == "rb"
 
@@ -139,3 +142,50 @@ def test_analyze_pdf_success(tmp_path):
 
         # Verify that the function returns the Azure analysis result.
         assert result is expected_result
+
+
+# Verify that callers can retrieve the Azure analysis operation ID.
+def test_analyze_pdf_returns_operation_id(tmp_path):
+
+    # Create a temporary PDF for the mocked analysis.
+    pdf_path = tmp_path / "report.pdf"
+
+    # Write minimal PDF-like bytes; Azure is mocked in this test.
+    pdf_path.write_bytes(b"%PDF-1.4\n%%EOF")
+
+    # Replace the real Azure client factory with a mock.
+    with patch(
+        "rag.ingestion.layout_extractor.create_document_intelligence_client"
+    ) as mock_factory:
+
+        # Access the simulated Azure client.
+        mock_client = mock_factory.return_value
+
+        # Access the simulated long-running operation poller.
+        mock_poller = mock_client.begin_analyze_document.return_value
+
+        # Define the expected analysis result.
+        expected_result = sentinel.analysis_result
+
+        # Make the simulated poller return our analysis result.
+        mock_poller.result.return_value = expected_result
+
+        # Simulate Azure's operation metadata.
+        mock_poller.details = {"operation_id": "azure-operation-123"}
+
+        # Request both the analysis result and operation ID.
+        result, operation_id = analyze_pdf_layout(
+            str(pdf_path),
+            include_operation_id=True,
+        )
+
+        # Verify that the original analysis result is preserved.
+        assert result is expected_result
+
+        # Verify that the correct Azure operation ID is returned.
+        assert operation_id == "azure-operation-123"
+
+        # Verify that Azure was asked to generate figure images.
+        assert mock_client.begin_analyze_document.call_args.kwargs[
+            "output"
+        ] == ["figures"]
