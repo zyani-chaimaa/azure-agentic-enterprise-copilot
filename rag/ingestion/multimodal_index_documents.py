@@ -1,6 +1,8 @@
 # Import the Azure identity provider for passwordless authentication.
 import re
+from time import sleep
 
+from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential
 
 # Import the Azure AI Search document upload client.
@@ -82,20 +84,56 @@ def index_multimodal_chunks(chunks: list[MultimodalChunk]) -> int:
         # Generate an embedding and preserve all source metadata.
         search_document = embed_multimodal_chunk(chunk)
 
-        # Upload one document to Azure AI Search v2.
-        results = client.upload_documents(
-            documents=[search_document]
-        )
+        # Allow three attempts for temporary Azure service failures.
+        max_attempts = 3
 
-        # Reject missing or unsuccessful upload results.
-        if (
-            not results
-            or len(results) != 1
-            or not results[0].succeeded
-        ):
-            raise RuntimeError(
-                f"Failed to index multimodal chunk: {chunk.chunk_id}"
-            )
+        # Retry only HTTP statuses that can represent transient failures.
+        retryable_statuses = {408, 429, 500, 502, 503, 504}
+
+        # Upload the same embedded document on every retry.
+        for attempt in range(1, max_attempts + 1):
+
+            # Attempt to upload this chunk to Azure AI Search v2.
+            try:
+                results = client.upload_documents(
+                    documents=[search_document]
+                )
+
+            # Handle HTTP failures returned by the Azure SDK.
+            except HttpResponseError as exc:
+
+                # Read the HTTP status without assuming a response exists.
+                status_code = exc.status_code
+
+                # Propagate permanent failures without retrying.
+                if status_code not in retryable_statuses:
+                    raise
+
+                # Report an exhausted retry budget with the chunk ID.
+                if attempt == max_attempts:
+                    raise RuntimeError(
+                        f"Failed to index multimodal chunk after "
+                        f"{max_attempts} attempts: {chunk.chunk_id}"
+                    ) from exc
+
+                # Wait progressively longer before retrying.
+                sleep(2 ** (attempt - 1))
+
+                # Continue with the next attempt.
+                continue
+
+            # Reject missing or unsuccessful upload results.
+            if (
+                not results
+                or len(results) != 1
+                or not results[0].succeeded
+            ):
+                raise RuntimeError(
+                    f"Failed to index multimodal chunk: {chunk.chunk_id}"
+                )
+
+            # Stop retrying after a successful upload.
+            break
 
         # Update the successful upload count.
         uploaded += 1
