@@ -16,8 +16,14 @@ from app.config import settings
 from rag.models.multimodal_chunk import MultimodalChunk
 
 # Import our tested multimodal embedding adapter.
-from rag.ingestion.multimodal_embedder import embed_multimodal_chunk
+from rag.ingestion.multimodal_embedder import (
+    embed_multimodal_chunk,
+    embed_multimodal_chunks,
+)
 from rag.ingestion.multimodal_checkpoint import load_checkpoint, save_checkpoint
+from rag.ingestion.multimodal_batch_upload import upload_multimodal_batch
+from rag.ingestion.multimodal_batch_planner import plan_embedding_batches
+from rag.ingestion.embedding_rate_limiter import EmbeddingQuotaLimiter
 
 
 # Embed and index validated multimodal chunks in Azure AI Search v2.
@@ -25,7 +31,12 @@ def index_multimodal_chunks(
     chunks: list[MultimodalChunk],
     checkpoint_path: str | Path | None = None,
     fingerprint: str | None = None,
+    batch_size: int = 1,
 ) -> int:
+
+    # Require a positive integer batch size.
+    if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size < 1:
+        raise ValueError("batch_size must be a positive integer.")
 
     # Reject an empty collection before connecting to Azure.
     if not chunks:
@@ -108,6 +119,129 @@ def index_multimodal_chunks(
 
     # Track successfully indexed chunks.
     uploaded = 0
+
+    # Use batch uploads only when explicitly requested.
+    if batch_size > 1:
+
+        # Keep the original input order while skipping completed chunks.
+        pending_chunks = [
+            chunk for chunk in chunks
+            if chunk.chunk_id not in completed
+        ]
+
+        # Plan batches using both chunk-count and token limits.
+        batches = plan_embedding_batches(
+            pending_chunks,
+            max_chunks=batch_size,
+            max_batch_tokens=4000,
+        )
+
+        # Share one quota limiter across all embedding batches.
+        quota_limiter = EmbeddingQuotaLimiter()
+
+        # Process the planned batches in their original order.
+        for batch in batches:
+
+            # Generate batch embeddings while enforcing Azure quotas.
+            documents = embed_multimodal_chunks(
+                batch,
+                quota_limiter=quota_limiter,
+            )
+
+            # Track documents that still require uploading.
+            remaining = {
+                document["chunk_id"]: document
+                for document in documents
+            }
+
+            # Retry temporary Azure Search failures up to three times.
+            for attempt in range(1, 4):
+
+                # Submit only documents not yet confirmed successful.
+                try:
+                    succeeded, failed = upload_multimodal_batch(
+                        client,
+                        list(remaining.values()),
+                    )
+
+                # Handle transient request-level Azure failures.
+                except HttpResponseError as exc:
+
+                    # Propagate permanent request-level failures.
+                    if exc.status_code not in {408, 429, 500, 502, 503, 504}:
+                        raise
+
+                    # Stop when all attempts are exhausted.
+                    if attempt == 3:
+                        raise RuntimeError(
+                            "Failed to index multimodal batch after 3 attempts."
+                        ) from exc
+
+                    # Wait before retrying the request.
+                    sleep(2 ** (attempt - 1))
+                    continue
+
+                # Checkpoint each confirmed successful document.
+                for chunk_id in sorted(succeeded):
+
+                    # Never checkpoint a document twice.
+                    if chunk_id in completed:
+                        continue
+
+                    # Add the successful document to completed progress.
+                    completed.add(chunk_id)
+
+                    # Persist successful progress immediately.
+                    if checkpoint_path is not None:
+                        save_checkpoint(
+                            checkpoint_path,
+                            chunks[0].document_id,
+                            sorted(completed),
+                            fingerprint=fingerprint,
+                        )
+
+                    # Increment the number uploaded in this run.
+                    uploaded += 1
+
+                    # Report confirmed indexing progress.
+                    print(
+                        f"Indexed {uploaded}/{len(chunks)}: {chunk_id}",
+                        flush=True,
+                    )
+
+                # Remove confirmed successes from the retry collection.
+                for chunk_id in succeeded:
+                    remaining.pop(chunk_id, None)
+
+                # Stop if every document was indexed.
+                if not remaining:
+                    break
+
+                # Stop immediately on permanent or unknown failures.
+                permanent = {
+                    chunk_id: status
+                    for chunk_id, status in failed.items()
+                    if status not in {408, 429, 500, 502, 503, 504}
+                }
+
+                # Report permanent failures after preserving successes.
+                if permanent:
+                    raise RuntimeError(
+                        f"Failed to index multimodal batch: {permanent}"
+                    )
+
+                # Report temporary failures after the final attempt.
+                if attempt == 3:
+                    raise RuntimeError(
+                        f"Failed to index multimodal batch after 3 attempts: "
+                        f"{sorted(remaining)}"
+                    )
+
+                # Wait before retrying only the failed documents.
+                sleep(2 ** (attempt - 1))
+
+        # Return the number of confirmed successful uploads.
+        return uploaded
 
     # Process chunks individually to respect embedding quotas.
     for chunk in chunks:

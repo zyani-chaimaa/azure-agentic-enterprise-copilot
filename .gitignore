@@ -47,3 +47,6 @@ frontend/.turbo/
 frontend/*.tsbuildinfo
 frontend/.env*
 !frontend/.env.example
+
+# Local multimodal documents, caches, and ingestion checkpoints.
+/data/documents/multimodal/

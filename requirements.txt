@@ -9,3 +9,4 @@ pymupdf
 
 # Azure AI Document Intelligence for PDF layout, tables, and figures.
 azure-ai-documentintelligence
+tiktoken>=0.8,<1
