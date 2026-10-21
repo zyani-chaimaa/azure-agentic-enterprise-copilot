@@ -229,7 +229,18 @@ def test_pipeline_passes_checkpoint_and_fingerprint(monkeypatch, tmp_path):
     monkeypatch.setattr(
         pipeline,
         "chunk_multimodal_elements",
-        lambda **kwargs: ["mock-chunk"],
+        lambda **kwargs: [{
+            "chunk_id": "report-p1-paragraph-0-c0",
+            "element_id": "report-p1-paragraph-0",
+            "document_id": "report",
+            "filename": "report.pdf",
+            "source_uri": "documents/report.pdf",
+            "page_number": 1,
+            "chunk_index": 0,
+            "content_type": "text",
+            "content": "Sample report content.",
+            "extraction_method": "mock-extractor",
+        }],
     )
 
     # Define a fake indexing service that records its arguments.

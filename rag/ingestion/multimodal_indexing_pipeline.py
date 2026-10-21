@@ -13,6 +13,9 @@ from rag.ingestion.multimodal_index_documents import index_multimodal_chunks
 # Import deterministic PDF fingerprint generation.
 from rag.ingestion.multimodal_checkpoint import compute_document_fingerprint
 
+# Import persistent caching for extracted multimodal chunks.
+from rag.ingestion.multimodal_chunk_cache import load_chunk_cache, save_chunk_cache
+
 
 # Extract, chunk, embed, and index one multimodal PDF.
 def index_multimodal_pdf(
@@ -58,27 +61,53 @@ def index_multimodal_pdf(
         if checkpoint_path is not None else None
     )
 
-    # Extract validated text, tables, and figure evidence.
-    elements = ingest_multimodal_pdf(
-        file_path=str(path),
-        document_id=document_id,
-        source_uri=source_uri,
+    # Derive the cache path from the existing checkpoint path.
+    cache_path = (
+        Path(checkpoint_path).with_suffix(".chunks.json")
+        if checkpoint_path is not None
+        else None
     )
 
-    # Reject PDFs that produce no searchable evidence.
-    if not elements:
-        raise ValueError("No multimodal evidence was extracted.")
-
-    # Convert the extracted evidence into searchable chunks.
-    chunks = chunk_multimodal_elements(
-        elements=elements,
-        chunk_size=chunk_size,
-        overlap=overlap,
+    # Try to restore previously extracted chunks.
+    chunks = (
+        load_chunk_cache(cache_path, document_id, fingerprint)
+        if cache_path is not None
+        else None
     )
 
-    # Reject PDFs that produce no searchable chunks.
-    if not chunks:
-        raise ValueError("No multimodal chunks were generated.")
+    # Perform document extraction only when no cache exists.
+    if chunks is None:
+
+        # Extract validated text, tables, and figure evidence.
+        elements = ingest_multimodal_pdf(
+            file_path=str(path),
+            document_id=document_id,
+            source_uri=source_uri,
+        )
+
+        # Reject PDFs that produce no searchable evidence.
+        if not elements:
+            raise ValueError("No multimodal evidence was extracted.")
+
+        # Convert extracted evidence into searchable chunks.
+        chunks = chunk_multimodal_elements(
+            elements=elements,
+            chunk_size=chunk_size,
+            overlap=overlap,
+        )
+
+        # Reject PDFs that produce no searchable chunks.
+        if not chunks:
+            raise ValueError("No multimodal chunks were generated.")
+
+        # Save the chunks before starting potentially lengthy indexing.
+        if cache_path is not None:
+            save_chunk_cache(
+                cache_path,
+                document_id,
+                fingerprint,
+                chunks,
+            )
 
     # Embed and upload chunks exclusively to Azure AI Search v2.
     if checkpoint_path is not None:
