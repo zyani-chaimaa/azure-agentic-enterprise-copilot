@@ -9,6 +9,7 @@ import pytest
 
 # Import the function being tested.
 from rag.ingestion.multimodal_pipeline import ingest_multimodal_pdf
+from rag.models.multimodal import MultimodalElement
 
 
 # Verify that all extracted evidence is combined correctly.
@@ -26,19 +27,19 @@ def test_ingest_combines_all_content_types():
         # Simulate paragraph conversion.
         with patch(
             "rag.ingestion.multimodal_pipeline.convert_paragraphs",
-            return_value=["paragraph-evidence"],
+            return_value=[MultimodalElement(element_id="REPORT-001-text", document_id="REPORT-001", filename="annual.pdf", source_uri="documents/annual.pdf", page_number=1, content_type="text", content="text evidence", extraction_method="test")],
         ) as paragraphs:
 
             # Simulate table conversion.
             with patch(
                 "rag.ingestion.multimodal_pipeline.convert_tables",
-                return_value=["table-evidence"],
+                return_value=[MultimodalElement(element_id="REPORT-001-table", document_id="REPORT-001", filename="annual.pdf", source_uri="documents/annual.pdf", page_number=1, content_type="table", content="table evidence", extraction_method="test")],
             ) as tables:
 
                 # Simulate figure conversion.
                 with patch(
                     "rag.ingestion.multimodal_pipeline.convert_figures",
-                    return_value=["figure-evidence"],
+                    return_value=[MultimodalElement(element_id="REPORT-001-figure", document_id="REPORT-001", filename="annual.pdf", source_uri="documents/annual.pdf", page_number=2, content_type="figure", content="figure evidence", extraction_method="test", asset_uri="https://example.com/figure.png")],
                 ) as figures:
 
                     # Run the complete ingestion workflow.
@@ -50,9 +51,9 @@ def test_ingest_combines_all_content_types():
 
     # Verify that all three evidence collections are included.
     assert elements == [
-        "paragraph-evidence",
-        "table-evidence",
-        "figure-evidence",
+        MultimodalElement(element_id="REPORT-001-text", document_id="REPORT-001", filename="annual.pdf", source_uri="documents/annual.pdf", page_number=1, content_type="text", content="text evidence", extraction_method="test"),
+        MultimodalElement(element_id="REPORT-001-table", document_id="REPORT-001", filename="annual.pdf", source_uri="documents/annual.pdf", page_number=1, content_type="table", content="table evidence", extraction_method="test"),
+        MultimodalElement(element_id="REPORT-001-figure", document_id="REPORT-001", filename="annual.pdf", source_uri="documents/annual.pdf", page_number=2, content_type="figure", content="figure evidence", extraction_method="test", asset_uri="https://example.com/figure.png"),
     ]
 
     # Verify that PDF analysis requests an operation ID.
@@ -84,7 +85,7 @@ def test_ingest_document_without_figures():
         # Replace paragraph conversion with a mock.
         with patch(
             "rag.ingestion.multimodal_pipeline.convert_paragraphs",
-            return_value=["text-evidence"],
+            return_value=[MultimodalElement(element_id="REPORT-002-text", document_id="REPORT-002", filename="report.pdf", source_uri="documents/report.pdf", page_number=1, content_type="text", content="text evidence", extraction_method="test")],
         ):
 
             # Replace table conversion with a mock.
@@ -107,7 +108,7 @@ def test_ingest_document_without_figures():
                     )
 
     # Verify that text-only evidence is returned.
-    assert elements == ["text-evidence"]
+    assert elements == [MultimodalElement(element_id="REPORT-002-text", document_id="REPORT-002", filename="report.pdf", source_uri="documents/report.pdf", page_number=1, content_type="text", content="text evidence", extraction_method="test")]
 
 
 # Reject invalid inputs before starting Azure analysis.
@@ -252,3 +253,75 @@ def test_ingest_returns_validated_multimodal_elements():
 
     # Verify that both original PDF page references survive.
     assert [item.page_number for item in elements] == [1, 2]
+
+
+# Verify that unexpected evidence types are rejected.
+def test_ingest_rejects_invalid_evidence_type():
+
+    # Simulate a completed PDF analysis.
+    result = SimpleNamespace()
+
+    # Replace external analysis and conversion operations.
+    with patch(
+        "rag.ingestion.multimodal_pipeline.analyze_pdf_layout",
+        return_value=(result, "operation-123"),
+    ), patch(
+        "rag.ingestion.multimodal_pipeline.convert_paragraphs",
+        return_value=["invalid-evidence"],
+    ), patch(
+        "rag.ingestion.multimodal_pipeline.convert_tables",
+        return_value=[],
+    ), patch(
+        "rag.ingestion.multimodal_pipeline.convert_figures",
+        return_value=[],
+    ):
+
+        # Ensure invalid evidence cannot leave the pipeline.
+        with pytest.raises(TypeError, match="expected MultimodalElement"):
+            ingest_multimodal_pdf(
+                "report.pdf",
+                "REPORT-001",
+                "documents/report.pdf",
+            )
+
+
+# Verify that evidence cannot be attributed to another document.
+def test_ingest_rejects_mismatched_document_id():
+
+    # Create valid evidence belonging to a different document.
+    foreign_element = MultimodalElement(
+        element_id="OTHER-001-paragraph-0",
+        document_id="OTHER-001",
+        filename="report.pdf",
+        source_uri="documents/report.pdf",
+        page_number=1,
+        content_type="text",
+        content="Evidence from another document.",
+        extraction_method="test",
+    )
+
+    # Simulate a completed PDF analysis.
+    result = SimpleNamespace()
+
+    # Replace external analysis and conversion operations.
+    with patch(
+        "rag.ingestion.multimodal_pipeline.analyze_pdf_layout",
+        return_value=(result, "operation-123"),
+    ), patch(
+        "rag.ingestion.multimodal_pipeline.convert_paragraphs",
+        return_value=[foreign_element],
+    ), patch(
+        "rag.ingestion.multimodal_pipeline.convert_tables",
+        return_value=[],
+    ), patch(
+        "rag.ingestion.multimodal_pipeline.convert_figures",
+        return_value=[],
+    ):
+
+        # Ensure evidence from another document is rejected.
+        with pytest.raises(ValueError, match="different document"):
+            ingest_multimodal_pdf(
+                "report.pdf",
+                "REPORT-001",
+                "documents/report.pdf",
+            )

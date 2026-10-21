@@ -71,5 +71,33 @@ def ingest_multimodal_pdf(
     # Combine the evidence from all supported content types.
     elements = paragraphs + tables + figures
 
-    # Return the evidence for later chunking and search indexing.
-    return elements
+    # Validate every element before allowing downstream indexing.
+    validated_elements = []
+
+    # Inspect each extracted record independently.
+    for index, element in enumerate(elements):
+
+        # Reject unexpected object types instead of silently accepting them.
+        if not isinstance(element, MultimodalElement):
+            raise TypeError(
+                f"Invalid evidence at position {index}: "
+                "expected MultimodalElement."
+            )
+
+        # Revalidate the object's current fields against its Pydantic schema.
+        validated = MultimodalElement.model_validate(
+            element.model_dump()
+        )
+
+        # Prevent evidence from another document entering this ingestion.
+        if validated.document_id != document_id:
+            raise ValueError(
+                f"Evidence {validated.element_id} belongs to "
+                "a different document."
+            )
+
+        # Preserve the validated evidence.
+        validated_elements.append(validated)
+
+    # Return only validated evidence for downstream indexing.
+    return validated_elements
