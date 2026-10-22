@@ -161,6 +161,7 @@ def convert_figures(
     document_id: str,
     filename: str,
     source_uri: str,
+    strict_vision: bool = False,
 ) -> list[MultimodalElement]:
 
     # Import image retrieval only when figure conversion is requested.
@@ -236,6 +237,10 @@ def convert_figures(
 
         # Keep ingestion functional if visual analysis fails.
         except Exception:
+            # Reject incomplete visual analysis when strict mode is enabled.
+            if strict_vision:
+                raise
+
             # Record the failure with its source document and figure identifier.
             logger.exception(
                 "Vision analysis failed for document_id=%s figure_id=%s; "

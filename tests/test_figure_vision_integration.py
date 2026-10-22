@@ -145,3 +145,53 @@ def test_figure_vision_failure_fallback(monkeypatch):
 
     # Verify that the original image reference is retained.
     assert all(item.asset_uri == "https://example.com/figure.png" for item in elements)
+
+
+# Verify that strict mode rejects a failed GPT-5.4-mini analysis.
+def test_figure_vision_failure_strict_mode(monkeypatch):
+
+    # Replace Azure image retrieval with simulated image bytes.
+    monkeypatch.setattr(
+        figure_extractor,
+        "retrieve_figure_image",
+        lambda **kwargs: b"fake-png",
+    )
+
+    # Track whether the converter attempts a Blob Storage upload.
+    upload_calls = []
+
+    # Replace Blob Storage upload with a function that records calls.
+    monkeypatch.setattr(
+        blob_storage,
+        "upload_figure_image",
+        lambda **kwargs: upload_calls.append(kwargs),
+    )
+
+    # Simulate a failure from the GPT-5.4-mini vision service.
+    def failing_analyze(image_bytes):
+
+        # Raise an error to simulate an unavailable model.
+        raise RuntimeError("Vision service unavailable")
+
+    # Replace the real vision model with the failing simulation.
+    monkeypatch.setattr(
+        figure_analyzer,
+        "analyze_figure_image",
+        failing_analyze,
+    )
+
+    # Verify that strict mode propagates the vision error.
+    with pytest.raises(RuntimeError, match="Vision service unavailable"):
+
+        # Convert the figure with strict validation enabled.
+        convert_figures(
+            result=make_document_result(),
+            operation_id="test-operation",
+            document_id="test-document",
+            filename="test.pdf",
+            source_uri="https://example.com/test.pdf",
+            strict_vision=True,
+        )
+
+    # Confirm that no image was uploaded after the vision failure.
+    assert upload_calls == []

@@ -20,6 +20,7 @@ def ingest_multimodal_pdf(
     file_path: str,
     document_id: str,
     source_uri: str,
+    strict_vision: bool = False,
 ) -> list[MultimodalElement]:
 
     # Require a meaningful document identifier.
@@ -66,6 +67,7 @@ def ingest_multimodal_pdf(
         document_id=document_id,
         filename=filename,
         source_uri=source_uri,
+        strict_vision=strict_vision,
     )
 
     # Combine the evidence from all supported content types.
