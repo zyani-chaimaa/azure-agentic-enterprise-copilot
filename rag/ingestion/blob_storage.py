@@ -105,3 +105,76 @@ def upload_figure_image(
 
     # Return the blob URI without exposing credentials.
     return blob_client.url
+
+# Import URL parsing to validate existing figure asset locations.
+from urllib.parse import urlparse, unquote
+
+
+# Download an existing figure image from NEXORA's Azure Blob Storage.
+def download_figure_image(asset_uri: str) -> bytes:
+
+    # Require a nonempty asset URL.
+    if not isinstance(asset_uri, str) or not asset_uri.strip():
+        raise ValueError("A valid figure asset_uri is required.")
+
+    # Parse the provided figure URL.
+    parsed = urlparse(asset_uri)
+
+    # Parse the configured Azure Storage endpoint.
+    expected = urlparse(settings.azure_storage_endpoint or "")
+
+    # Reject non-HTTPS URLs, unexpected storage accounts, and URL credentials.
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc != expected.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("Figure URL must belong to the configured Azure Storage account.")
+
+    # Read the configured Blob Storage container.
+    container_name = settings.azure_storage_container
+
+    # Require a configured container name.
+    if not container_name:
+        raise ValueError("AZURE_STORAGE_CONTAINER is not configured.")
+
+    # Decode the URL path into its container and blob components.
+    path = unquote(parsed.path).lstrip("/")
+
+    # Require the URL to reference the configured container.
+    if not path.startswith(f"{container_name}/"):
+        raise ValueError("Figure URL references an unexpected storage container.")
+
+    # Extract the blob name after the container prefix.
+    blob_name = path[len(container_name) + 1:]
+
+    # Restrict downloads to the expected figure directory.
+    if (
+        not blob_name.startswith("figures/")
+        or not blob_name.lower().endswith(".png")
+        or any(part in ("", ".", "..") for part in blob_name.split("/"))
+        or "\\" in blob_name
+    ):
+        raise ValueError("Invalid figure blob path.")
+
+    # Reuse NEXORA's existing authenticated Blob Storage client.
+    service_client = create_blob_service_client()
+
+    # Select the validated figure blob.
+    blob_client = service_client.get_blob_client(
+        container=container_name,
+        blob=blob_name,
+    )
+
+    # Download the image without modifying the stored blob.
+    image_bytes = blob_client.download_blob().readall()
+
+    # Reject empty image responses.
+    if not image_bytes:
+        raise ValueError("Azure Blob Storage returned an empty figure image.")
+
+    # Return the original PNG bytes for visual analysis.
+    return image_bytes
