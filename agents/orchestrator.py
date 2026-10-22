@@ -1,6 +1,7 @@
 
 # Import JSON for decoding tool arguments and encoding tool results.
 import json
+import os
 
 # Import our Azure model client factory.
 from app.model_client import create_model_client
@@ -92,12 +93,13 @@ TOOLS = [
         "type": "function",
         "name": "search_enterprise_documents",
         "description": (
-            "Search enterprise policy PDFs and internal documents using "
+            "Search indexed enterprise documents and research reports using "
             "Azure AI Search hybrid keyword and vector retrieval. "
-            "Use for questions about policies, procedures, eligibility, "
-            "returns, refunds, damaged items, and documented rules. "
+            "Use for questions about market research, industry trends, "
+            "the Webshoppers report, policies, procedures, and documented facts. "
             "Returns source passages with filenames and page numbers. "
-            "Do not use this tool for SQL sales calculations."
+            "Use SQL analytics tools instead for business calculations. "
+            "Use both tools when a question requires document evidence and SQL data."
         ),
         "parameters": {
             "type": "object",
@@ -137,7 +139,7 @@ def run_analytics_agent(question: str) -> dict:
         ),
         input=question,
         tools=TOOLS,
-        max_output_tokens=1500,
+        max_output_tokens=4000,
     )
 
     # Keep a record of which tools the model requested.
@@ -187,10 +189,20 @@ def run_analytics_agent(question: str) -> dict:
             # Retrieve relevant policy passages from Azure AI Search.
             elif call.name == "search_enterprise_documents":
 
-                # Run hybrid keyword and vector retrieval.
+                # Read the semantic retrieval feature flag.
+                semantic_enabled = (
+                    os.getenv("NEXORA_SEMANTIC_SEARCH", "false")
+                    .strip()
+                    .lower()
+                    in {"true", "1", "yes", "on"}
+                )
+
+                # Retrieve documents using the selected search mode.
                 passages = hybrid_search(
                     question=arguments["query"],
                     top_k=5,
+                    multimodal=True,
+                    semantic=semantic_enabled,
                 )
 
                 # Return evidence and source metadata to the agent.
@@ -222,7 +234,7 @@ def run_analytics_agent(question: str) -> dict:
             previous_response_id=response.id,
             input=tool_outputs,
             tools=TOOLS,
-            max_output_tokens=1500,
+            max_output_tokens=4000,
         )
 
     # Return the final answer and the executed tool-call trace.

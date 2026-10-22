@@ -15,7 +15,7 @@ from rag.ingestion.embedder import embed_text
 
 
 # Search indexed enterprise documents using keywords and vectors.
-def hybrid_search(question: str, top_k: int = 5) -> list[dict]:
+def hybrid_search(question: str, top_k: int = 5, multimodal: bool = False, vector_k: int | None = None, semantic: bool = False) -> list[dict]:
 
     # Reject questions that are empty or contain only spaces.
     if not question or not question.strip():
@@ -24,6 +24,14 @@ def hybrid_search(question: str, top_k: int = 5) -> list[dict]:
     # Ensure the requested number of results is valid.
     if top_k < 1:
         raise ValueError("top_k must be at least 1.")
+
+    # Default to the original candidate count when none is supplied.
+    # Give semantic ranking a larger candidate pool by default.
+    vector_k = (50 if semantic else top_k) if vector_k is None else vector_k
+
+    # Reject invalid vector candidate counts.
+    if vector_k < 1:
+        raise ValueError('vector_k must be at least 1.')
 
     # Convert the question into an embedding vector.
     question_vector = embed_text(question)
@@ -36,23 +44,28 @@ def hybrid_search(question: str, top_k: int = 5) -> list[dict]:
     # Connect to our existing Azure AI Search index.
     client = SearchClient(
         endpoint=settings.azure_search_endpoint,
-        index_name=settings.azure_search_index,
+        index_name=(
+            settings.azure_multimodal_search_index
+            if multimodal
+            else settings.azure_search_index
+        ),
         credential=credential,
     )
 
     # Define a vector search against our content_vector field.
     vector_query = VectorizedQuery(
         vector=question_vector,
-        k_nearest_neighbors=top_k,
+        k_nearest_neighbors=vector_k,
         fields="content_vector",
     )
 
     # Execute hybrid search using text and vector similarity.
-    results = client.search(
-        search_text=question,
-        vector_queries=[vector_query],
-        top=top_k,
-        select=[
+    # Preserve the existing hybrid-search parameters.
+    search_options = {
+        "search_text": question,
+        "vector_queries": [vector_query],
+        "top": top_k,
+        "select": [
             "chunk_id",
             "document_id",
             "filename",
@@ -60,7 +73,15 @@ def hybrid_search(question: str, top_k: int = 5) -> list[dict]:
             "page_number",
             "content",
         ],
-    )
+    }
+
+    # Add semantic ranking only when explicitly requested.
+    if semantic:
+        search_options["query_type"] = "semantic"
+        search_options["semantic_configuration_name"] = "nexora-semantic-v1"
+
+    # Execute the selected retrieval strategy.
+    results = client.search(**search_options)
 
     # Prepare a list to store retrieved passages.
     passages = []
@@ -78,6 +99,7 @@ def hybrid_search(question: str, top_k: int = 5) -> list[dict]:
                 "page_number": result["page_number"],
                 "content": result["content"],
                 "score": result.get("@search.score"),
+                "reranker_score": result.get("@search.reranker_score"),
             }
         )
 

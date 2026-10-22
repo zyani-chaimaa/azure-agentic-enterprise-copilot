@@ -1,0 +1,27 @@
+[
+  {
+    "id": "regional_distribution",
+    "question": "What percentage of Brazilian e-commerce sales comes from each region according to Webshoppers 38?",
+    "expected_document_id": "webshoppers-38-2018",
+    "expected_pages": [14],
+    "expected_chunk_ids": []
+  },
+  {
+    "id": "category_market_share",
+    "question": "According to Webshoppers 38, what are the leading product categories and their market shares?",
+    "expected_document_id": "webshoppers-38-2018",
+    "expected_pages": [17],
+    "expected_chunk_ids": [
+      "webshoppers-38-2018-p17-figure-50-c0"
+    ]
+  },
+  {
+    "id": "category_growth",
+    "question": "Which product categories grew in orders and revenue between the first half of 2017 and the first half of 2018 in Webshoppers 38?",
+    "expected_document_id": "webshoppers-38-2018",
+    "expected_pages": [17],
+    "expected_chunk_ids": [
+      "webshoppers-38-2018-p17-figure-51-c0"
+    ]
+  }
+]

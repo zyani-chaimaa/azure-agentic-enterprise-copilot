@@ -1,0 +1,341 @@
+[
+  {
+    "vector_k": 5,
+    "metrics": {
+      "page_hit_at_5": 1.0,
+      "exact_chunk_hit_at_5": 0.5,
+      "mrr_at_5": 0.8333333333333334,
+      "average_latency_seconds": 2.127333333333333
+    },
+    "cases": [
+      {
+        "id": "regional_distribution",
+        "page_hit": true,
+        "exact_chunk_hit": null,
+        "reciprocal_rank": 1.0,
+        "latency_seconds": 2.103,
+        "retrieved": [
+          {
+            "rank": 1,
+            "chunk_id": "webshoppers-38-2018-p14-figure-37-c0",
+            "page_number": 14
+          },
+          {
+            "rank": 2,
+            "chunk_id": "webshoppers-38-2018-p9-figure-27-c0",
+            "page_number": 9
+          },
+          {
+            "rank": 3,
+            "chunk_id": "webshoppers-38-2018-p8-paragraph-245-c0",
+            "page_number": 8
+          },
+          {
+            "rank": 4,
+            "chunk_id": "webshoppers-38-2018-p4-paragraph-59-c0",
+            "page_number": 4
+          },
+          {
+            "rank": 5,
+            "chunk_id": "webshoppers-38-2018-p4-paragraph-58-c0",
+            "page_number": 4
+          }
+        ]
+      },
+      {
+        "id": "category_market_share",
+        "page_hit": true,
+        "exact_chunk_hit": true,
+        "reciprocal_rank": 1.0,
+        "latency_seconds": 2.686,
+        "retrieved": [
+          {
+            "rank": 1,
+            "chunk_id": "webshoppers-38-2018-p17-figure-50-c0",
+            "page_number": 17
+          },
+          {
+            "rank": 2,
+            "chunk_id": "webshoppers-38-2018-p17-figure-49-c0",
+            "page_number": 17
+          },
+          {
+            "rank": 3,
+            "chunk_id": "webshoppers-38-2018-p14-figure-37-c0",
+            "page_number": 14
+          },
+          {
+            "rank": 4,
+            "chunk_id": "webshoppers-38-2018-p8-paragraph-245-c0",
+            "page_number": 8
+          },
+          {
+            "rank": 5,
+            "chunk_id": "webshoppers-38-2018-p17-figure-51-c0",
+            "page_number": 17
+          }
+        ]
+      },
+      {
+        "id": "category_growth",
+        "page_hit": true,
+        "exact_chunk_hit": false,
+        "reciprocal_rank": 0.5,
+        "latency_seconds": 1.593,
+        "retrieved": [
+          {
+            "rank": 1,
+            "chunk_id": "webshoppers-38-2018-p18-figure-54-c0",
+            "page_number": 18
+          },
+          {
+            "rank": 2,
+            "chunk_id": "webshoppers-38-2018-p17-figure-50-c0",
+            "page_number": 17
+          },
+          {
+            "rank": 3,
+            "chunk_id": "webshoppers-38-2018-p15-paragraph-536-c0",
+            "page_number": 15
+          },
+          {
+            "rank": 4,
+            "chunk_id": "webshoppers-38-2018-p2-paragraph-31-c0",
+            "page_number": 2
+          },
+          {
+            "rank": 5,
+            "chunk_id": "webshoppers-38-2018-p39-figure-114-c0",
+            "page_number": 39
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "vector_k": 20,
+    "metrics": {
+      "page_hit_at_5": 0.6666666666666666,
+      "exact_chunk_hit_at_5": 0.5,
+      "mrr_at_5": 0.6666666666666666,
+      "average_latency_seconds": 2.0083333333333333
+    },
+    "cases": [
+      {
+        "id": "regional_distribution",
+        "page_hit": true,
+        "exact_chunk_hit": null,
+        "reciprocal_rank": 1.0,
+        "latency_seconds": 2.794,
+        "retrieved": [
+          {
+            "rank": 1,
+            "chunk_id": "webshoppers-38-2018-p14-figure-37-c0",
+            "page_number": 14
+          },
+          {
+            "rank": 2,
+            "chunk_id": "webshoppers-38-2018-p9-figure-27-c0",
+            "page_number": 9
+          },
+          {
+            "rank": 3,
+            "chunk_id": "webshoppers-38-2018-p8-paragraph-245-c0",
+            "page_number": 8
+          },
+          {
+            "rank": 4,
+            "chunk_id": "webshoppers-38-2018-p36-paragraph-1403-c0",
+            "page_number": 36
+          },
+          {
+            "rank": 5,
+            "chunk_id": "webshoppers-38-2018-p13-figure-35-c0",
+            "page_number": 13
+          }
+        ]
+      },
+      {
+        "id": "category_market_share",
+        "page_hit": true,
+        "exact_chunk_hit": true,
+        "reciprocal_rank": 1.0,
+        "latency_seconds": 1.601,
+        "retrieved": [
+          {
+            "rank": 1,
+            "chunk_id": "webshoppers-38-2018-p17-figure-50-c0",
+            "page_number": 17
+          },
+          {
+            "rank": 2,
+            "chunk_id": "webshoppers-38-2018-p17-figure-49-c0",
+            "page_number": 17
+          },
+          {
+            "rank": 3,
+            "chunk_id": "webshoppers-38-2018-p18-figure-54-c0",
+            "page_number": 18
+          },
+          {
+            "rank": 4,
+            "chunk_id": "webshoppers-38-2018-p14-figure-37-c0",
+            "page_number": 14
+          },
+          {
+            "rank": 5,
+            "chunk_id": "webshoppers-38-2018-p29-figure-83-c0",
+            "page_number": 29
+          }
+        ]
+      },
+      {
+        "id": "category_growth",
+        "page_hit": false,
+        "exact_chunk_hit": false,
+        "reciprocal_rank": 0.0,
+        "latency_seconds": 1.63,
+        "retrieved": [
+          {
+            "rank": 1,
+            "chunk_id": "webshoppers-38-2018-p18-figure-54-c0",
+            "page_number": 18
+          },
+          {
+            "rank": 2,
+            "chunk_id": "webshoppers-38-2018-p9-figure-27-c0",
+            "page_number": 9
+          },
+          {
+            "rank": 3,
+            "chunk_id": "webshoppers-38-2018-p13-figure-35-c0",
+            "page_number": 13
+          },
+          {
+            "rank": 4,
+            "chunk_id": "webshoppers-38-2018-p23-figure-65-c0",
+            "page_number": 23
+          },
+          {
+            "rank": 5,
+            "chunk_id": "webshoppers-38-2018-p14-figure-37-c0",
+            "page_number": 14
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "vector_k": 50,
+    "metrics": {
+      "page_hit_at_5": 0.6666666666666666,
+      "exact_chunk_hit_at_5": 0.5,
+      "mrr_at_5": 0.6666666666666666,
+      "average_latency_seconds": 1.7576666666666665
+    },
+    "cases": [
+      {
+        "id": "regional_distribution",
+        "page_hit": true,
+        "exact_chunk_hit": null,
+        "reciprocal_rank": 1.0,
+        "latency_seconds": 1.678,
+        "retrieved": [
+          {
+            "rank": 1,
+            "chunk_id": "webshoppers-38-2018-p14-figure-37-c0",
+            "page_number": 14
+          },
+          {
+            "rank": 2,
+            "chunk_id": "webshoppers-38-2018-p9-figure-27-c0",
+            "page_number": 9
+          },
+          {
+            "rank": 3,
+            "chunk_id": "webshoppers-38-2018-p8-paragraph-245-c0",
+            "page_number": 8
+          },
+          {
+            "rank": 4,
+            "chunk_id": "webshoppers-38-2018-p36-paragraph-1403-c0",
+            "page_number": 36
+          },
+          {
+            "rank": 5,
+            "chunk_id": "webshoppers-38-2018-p13-figure-35-c0",
+            "page_number": 13
+          }
+        ]
+      },
+      {
+        "id": "category_market_share",
+        "page_hit": true,
+        "exact_chunk_hit": true,
+        "reciprocal_rank": 1.0,
+        "latency_seconds": 1.938,
+        "retrieved": [
+          {
+            "rank": 1,
+            "chunk_id": "webshoppers-38-2018-p17-figure-50-c0",
+            "page_number": 17
+          },
+          {
+            "rank": 2,
+            "chunk_id": "webshoppers-38-2018-p17-figure-49-c0",
+            "page_number": 17
+          },
+          {
+            "rank": 3,
+            "chunk_id": "webshoppers-38-2018-p18-figure-54-c0",
+            "page_number": 18
+          },
+          {
+            "rank": 4,
+            "chunk_id": "webshoppers-38-2018-p9-paragraph-254-c0",
+            "page_number": 9
+          },
+          {
+            "rank": 5,
+            "chunk_id": "webshoppers-38-2018-p14-figure-37-c0",
+            "page_number": 14
+          }
+        ]
+      },
+      {
+        "id": "category_growth",
+        "page_hit": false,
+        "exact_chunk_hit": false,
+        "reciprocal_rank": 0.0,
+        "latency_seconds": 1.657,
+        "retrieved": [
+          {
+            "rank": 1,
+            "chunk_id": "webshoppers-38-2018-p18-figure-54-c0",
+            "page_number": 18
+          },
+          {
+            "rank": 2,
+            "chunk_id": "webshoppers-38-2018-p9-figure-27-c0",
+            "page_number": 9
+          },
+          {
+            "rank": 3,
+            "chunk_id": "webshoppers-38-2018-p13-figure-35-c0",
+            "page_number": 13
+          },
+          {
+            "rank": 4,
+            "chunk_id": "webshoppers-38-2018-p23-figure-65-c0",
+            "page_number": 23
+          },
+          {
+            "rank": 5,
+            "chunk_id": "webshoppers-38-2018-p14-figure-37-c0",
+            "page_number": 14
+          }
+        ]
+      }
+    ]
+  }
+]
