@@ -12,12 +12,16 @@ from app.config import settings
 
 # Import the embedding function we have already tested.
 from rag.ingestion.embedder import embed_text
+from rag.retrieval.document_permissions import DocumentPrincipal, build_document_security_filter
 
 
 # Search indexed enterprise documents using keywords and vectors.
-def hybrid_search(question: str, top_k: int = 5, multimodal: bool = False, vector_k: int | None = None, semantic: bool = False) -> list[dict]:
+def hybrid_search(question: str, top_k: int = 5, multimodal: bool = False, vector_k: int | None = None, semantic: bool = False, principal: DocumentPrincipal | None = None) -> list[dict]:
 
     # Reject questions that are empty or contain only spaces.
+    if principal is None:
+        raise PermissionError('Authenticated document identity is required.')
+
     if not question or not question.strip():
         raise ValueError("The search question cannot be empty.")
 
@@ -76,6 +80,8 @@ def hybrid_search(question: str, top_k: int = 5, multimodal: bool = False, vecto
     }
 
     # Add semantic ranking only when explicitly requested.
+    search_options['filter'] = build_document_security_filter(principal)
+
     if semantic:
         search_options["query_type"] = "semantic"
         search_options["semantic_configuration_name"] = "nexora-semantic-v1"

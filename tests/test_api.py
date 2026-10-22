@@ -31,6 +31,7 @@ def authenticated_test_user():
     # Simulate verified Microsoft Entra claims.
     def mock_authenticated_user():
         return {
+            "tid": "test-tenant-001",
             "oid": "test-user-001",
             "roles": ["Copilot.User"],
             "scp": "Copilot.Access",
@@ -73,7 +74,11 @@ def test_analytics_api_success(mock_agent):
     assert response.json()["answer"] == "Sales increased by 77.52%."
 
     # Verify that the API forwarded the question to our agent.
-    mock_agent.assert_called_once_with("How did Olist sales change?")
+    mock_agent.assert_called_once()
+    args, kwargs = mock_agent.call_args
+    assert args == ("How did Olist sales change?",)
+    assert kwargs["principal"].tenant_id == "test-tenant-001"
+    assert kwargs["principal"].user_id == "test-user-001"
 
 
 # Verify that empty questions are rejected.

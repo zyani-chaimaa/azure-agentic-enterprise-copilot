@@ -9,10 +9,14 @@ from rag.retrieval.hybrid_search import hybrid_search
 
 
 # Answer a question using retrieved enterprise documents.
-def answer_document_question(question: str) -> dict:
+def answer_document_question(question: str, multimodal: bool = False, principal=None) -> dict:
 
     # Retrieve the five most relevant passages from Azure AI Search.
-    passages = hybrid_search(question, top_k=5)
+    passages = (
+        hybrid_search(question, top_k=5, multimodal=True, principal=principal)
+        if multimodal
+        else hybrid_search(question, top_k=5, principal=principal)
+    )
 
     # Handle cases where the index contains no relevant passages.
     if not passages:

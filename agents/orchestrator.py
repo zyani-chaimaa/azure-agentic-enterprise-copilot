@@ -118,7 +118,7 @@ TOOLS = [
 
 
 # Define the main entry point for our analytics agent.
-def run_analytics_agent(question: str) -> dict:
+def run_analytics_agent(question: str, principal=None) -> dict:
     # Create an authenticated client for the Azure model.
     client = create_model_client()
 
@@ -203,6 +203,7 @@ def run_analytics_agent(question: str) -> dict:
                     top_k=5,
                     multimodal=True,
                     semantic=semantic_enabled,
+                    principal=principal,
                 )
 
                 # Return evidence and source metadata to the agent.

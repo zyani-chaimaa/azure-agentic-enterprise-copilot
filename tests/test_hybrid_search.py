@@ -12,6 +12,27 @@ import rag.retrieval.hybrid_search as retrieval
 
 
 # Create a reusable mocked search environment.
+
+from rag.retrieval.document_permissions import DocumentPrincipal
+
+
+def _secured_hybrid_search(*args, **kwargs):
+    """Supply a valid test identity to the existing retrieval tests."""
+    kwargs.setdefault(
+        "principal",
+        DocumentPrincipal(
+            tenant_id="tenant-test",
+            user_id="user-test",
+        ),
+    )
+    return retrieval.hybrid_search(*args, **kwargs)
+
+
+def test_missing_principal_is_rejected():
+    """Production retrieval must reject requests without identity."""
+    with pytest.raises(PermissionError):
+        retrieval.hybrid_search("confidential document")
+
 @pytest.fixture
 def search_mocks():
     # Simulate one Azure Search result with citation metadata.
@@ -58,7 +79,7 @@ def test_hybrid_default_is_unchanged(search_mocks):
     client, vector_query = search_mocks
 
     # Execute the original retrieval mode.
-    passages = retrieval.hybrid_search("test question", top_k=5)
+    passages = _secured_hybrid_search("test question", top_k=5)
 
     # Inspect the Azure Search parameters.
     options = client.search.call_args.kwargs
@@ -79,7 +100,7 @@ def test_semantic_retrieval_configuration(search_mocks):
     client, vector_query = search_mocks
 
     # Execute semantic retrieval against the multimodal index.
-    passages = retrieval.hybrid_search(
+    passages = _secured_hybrid_search(
         "category growth",
         top_k=5,
         multimodal=True,
@@ -108,7 +129,7 @@ def test_explicit_vector_k_is_respected(search_mocks):
     _, vector_query = search_mocks
 
     # Execute semantic retrieval with an explicit candidate count.
-    retrieval.hybrid_search("category growth", semantic=True, vector_k=20)
+    _secured_hybrid_search("category growth", semantic=True, vector_k=20)
 
     # Ensure the explicit value takes precedence.
     assert vector_query.call_args.kwargs["k_nearest_neighbors"] == 20
@@ -126,7 +147,7 @@ def test_explicit_vector_k_is_respected(search_mocks):
 def test_invalid_parameters(question, top_k, vector_k):
     # Confirm invalid inputs raise a validation error.
     with pytest.raises(ValueError):
-        retrieval.hybrid_search(question, top_k=top_k, vector_k=vector_k)
+        _secured_hybrid_search(question, top_k=top_k, vector_k=vector_k)
 
 
 # Ensure Azure errors are not silently hidden.
@@ -139,4 +160,4 @@ def test_azure_errors_propagate(search_mocks):
 
     # Verify the caller receives the original error.
     with pytest.raises(RuntimeError, match="Azure Search unavailable"):
-        retrieval.hybrid_search("test", semantic=True)
+        _secured_hybrid_search("test", semantic=True)
