@@ -1,3 +1,9 @@
+# Import Python logging for figure-analysis diagnostics.
+import logging
+
+# Create a logger for document element conversion.
+logger = logging.getLogger(__name__)
+
 # Import the validated model used to represent extracted evidence.
 from rag.models.multimodal import MultimodalElement
 
@@ -160,6 +166,9 @@ def convert_figures(
     # Import image retrieval only when figure conversion is requested.
     from rag.ingestion.figure_extractor import retrieve_figure_image
 
+    # Import GPT-5.4-mini visual analysis for extracted figures.
+    from rag.ingestion.figure_analyzer import analyze_figure_image
+
     # Import the Azure Blob Storage upload function.
     from rag.ingestion.blob_storage import upload_figure_image
 
@@ -212,6 +221,31 @@ def convert_figures(
             operation_id=operation_id,
             figure_id=figure_id,
         )
+
+        # Analyze the extracted figure before creating searchable evidence.
+        try:
+            # Ask the vision model to describe the visual content.
+            visual_description = analyze_figure_image(image_bytes)
+
+            # Preserve the original caption alongside the visual description.
+            content = (
+                f"{caption_text}\n\n{visual_description}"
+                if caption_text
+                else visual_description
+            )
+
+        # Keep ingestion functional if visual analysis fails.
+        except Exception:
+            # Record the failure with its source document and figure identifier.
+            logger.exception(
+                "Vision analysis failed for document_id=%s figure_id=%s; "
+                "using caption fallback",
+                document_id,
+                figure_id,
+            )
+
+            # Preserve the original caption or neutral figure identifier.
+            content = caption_text or f"Figure {figure_id}"
 
         # Associate the image with its first referenced page.
         primary_page = page_numbers[0]
