@@ -68,7 +68,13 @@ from rag.ingestion.blob_storage import upload_figure_image
 
 
 # Verify that a figure is uploaded with its source metadata.
-def test_upload_figure_image_success():
+def test_upload_figure_image_success(monkeypatch):
+
+    # Make the expected container independent of local Azure configuration.
+    monkeypatch.setattr(
+        "rag.ingestion.blob_storage.settings.azure_storage_container",
+        "multimodal-figures",
+    )
 
     # Replace the real storage client factory with a mock.
     with patch(

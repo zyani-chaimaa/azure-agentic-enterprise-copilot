@@ -20,6 +20,21 @@ def test_batch_resume_after_partial_success(monkeypatch, tmp_path):
     # Configure mocked Azure settings and credentials.
     mock_azure(monkeypatch)
 
+    # Prevent batch embedding from contacting Azure during this unit test.
+    def fake_embed_multimodal_chunks(chunks, quota_limiter=None):
+        # Preserve every chunk and attach a deterministic 1536-dimensional vector.
+        return [
+            {**chunk.model_dump(), "content_vector": [0.1] * 1536}
+            for chunk in chunks
+        ]
+
+    # Replace the actual batch embedding function used by the indexer.
+    monkeypatch.setattr(
+        indexer,
+        "embed_multimodal_chunks",
+        fake_embed_multimodal_chunks,
+    )
+
     # Create three distinct chunks belonging to one document.
     chunks = [
         make_chunk().model_copy(

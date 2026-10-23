@@ -37,4 +37,5 @@ jobs:
         env:
           PYTHONPATH: .
         run: |
-          python -m pytest tests/ -q
+          # Dataset-dependent migration tests run separately with private fixtures.
+          python -m pytest tests/ -q --ignore=tests/test_reindex_webshoppers_vision.py
