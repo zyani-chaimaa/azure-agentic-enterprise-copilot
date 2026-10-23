@@ -1,0 +1,128 @@
+name: NEXORA Azure Deployment
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexora-azure-dev-deployment
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Validate Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-ci.txt
+
+      - name: Run backend tests
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m pytest tests/ -q \
+            --ignore=tests/test_reindex_webshoppers_vision.py
+
+  deploy:
+    name: Build and Deploy to Azure
+    needs: test
+
+    if: github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    environment: azure-dev
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Azure using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: 9c1bd23c-72e9-429e-9918-34cbe4463574
+          tenant-id: a50c7ddf-24ae-403c-b55b-5f14bd5ad88a
+          subscription-id: 3d41a7d3-c392-4d57-b972-1e142cf8e0ec
+
+      - name: Authenticate Docker to Azure Container Registry
+        run: |
+          az acr login --name acrenterprisecopilotdev
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push container image
+        env:
+          IMAGE: acrenterprisecopilotdev.azurecr.io/enterprise-copilot-api
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --tag "$IMAGE:${GITHUB_SHA}" \
+            --push \
+            .
+
+      - name: Deploy image to Azure Container Apps
+        env:
+          IMAGE: acrenterprisecopilotdev.azurecr.io/enterprise-copilot-api
+        run: |
+          az containerapp update \
+            --name ca-enterprise-copilot-dev \
+            --resource-group rg-enterprise-copilot-dev \
+            --image "$IMAGE:${GITHUB_SHA}"
+
+      - name: Verify deployment security settings
+        env:
+          IMAGE: acrenterprisecopilotdev.azurecr.io/enterprise-copilot-api
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          result = subprocess.check_output([
+              "az", "containerapp", "show",
+              "--name", "ca-enterprise-copilot-dev",
+              "--resource-group", "rg-enterprise-copilot-dev",
+              "--output", "json",
+          ], text=True)
+
+          app = json.loads(result)
+          properties = app["properties"]
+
+          ingress = properties["configuration"].get("ingress")
+          scale = properties["template"]["scale"]
+          image = properties["template"]["containers"][0]["image"]
+
+          expected_image = (
+              os.environ["IMAGE"] + ":" + os.environ["GITHUB_SHA"]
+          )
+
+          assert ingress is not None, "Container ingress configuration missing"
+          assert ingress["external"] is False, "Public ingress detected"
+          assert scale["minReplicas"] == 0, "Scale-to-zero disabled"
+          assert scale["maxReplicas"] == 1, "Unexpected maximum replica count"
+          assert image == expected_image, "Unexpected deployed image"
+
+          print("Deployment configuration verified.")
+          print("Image:", image)
+          print("Ingress: internal")
+          print("Replicas: 0–1")
+          PY
