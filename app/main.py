@@ -21,6 +21,7 @@ from rag.answer_generator import answer_document_question
 from fastapi import Depends
 
 # Import our human-user authorization dependency.
+from app.document_identity import principal_from_claims
 from app.auth import require_human_role
 
 # Import FastAPI middleware for controlling browser cross-origin requests.
@@ -53,6 +54,12 @@ class QuestionRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
 
 
+# Extend document questions with optional multimodal retrieval.
+class DocumentQuestionRequest(QuestionRequest):
+    # Keep text-only retrieval as the default for existing clients.
+    multimodal: bool = False
+
+
 # Define a basic health-check endpoint.
 @app.get("/health")
 def health_check():
@@ -70,7 +77,7 @@ def ask_analytics_agent(
     # Execute the agent and return its structured result.
     try:
         # Forward the validated question to the agent.
-        return run_analytics_agent(request.question)
+        return run_analytics_agent(request.question, principal=principal_from_claims(claims))
 
     # Handle unexpected failures without exposing internal details.
     except Exception as exc:
@@ -109,7 +116,7 @@ def test_model_connection(
 # Define an endpoint for answering questions from enterprise documents.
 @app.post("/api/v1/documents/ask")
 def ask_documents(
-    request: QuestionRequest,
+    request: DocumentQuestionRequest,
     # Require a valid token with Copilot.Access and Copilot.User.
     claims: dict = Depends(require_human_role("Copilot.User")),
 ):
@@ -118,7 +125,11 @@ def ask_documents(
     try:
 
         # Retrieve relevant PDF passages and generate a grounded answer.
-        result = answer_document_question(request.question)
+        result = (
+            answer_document_question(request.question, multimodal=True, principal=principal_from_claims(claims))
+            if request.multimodal
+            else answer_document_question(request.question, principal=principal_from_claims(claims))
+        )
 
         # Return the answer together with its source citations.
         return result
@@ -160,7 +171,7 @@ def ask_copilot(
     try:
         # Let the existing orchestrator select and execute permitted tools.
         # Execute the existing AI orchestrator.
-        result = run_analytics_agent(request.question)
+        result = run_analytics_agent(request.question, principal=principal_from_claims(claims))
 
         # Preserve the existing response format for the frontend.
         return result

@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     # Name of the search index containing our document chunks.
     azure_search_index: str = "enterprise-documents-v1"
 
+    # Name of the separate multimodal search index.
+    azure_multimodal_search_index: str = "enterprise-documents-v2"
+
+    # Azure AI Document Intelligence endpoint, supplied through .env.
+    azure_document_intelligence_endpoint: str = ""
+
+    # Document Intelligence model used to extract document structure.
+    azure_document_intelligence_model: str = "prebuilt-layout"
+
     # Azure Blob Storage account endpoint, configured through .env.
     azure_storage_endpoint: str = ""
 

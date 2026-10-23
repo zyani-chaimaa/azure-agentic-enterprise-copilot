@@ -6,3 +6,11 @@ pydantic-settings
 azure-storage-blob
 azure-search-documents
 pymupdf
+
+# Azure AI Document Intelligence for PDF layout, tables, and figures.
+azure-ai-documentintelligence
+tiktoken>=0.8,<1
+
+PyJWT[crypto]
+
+pyodbc
