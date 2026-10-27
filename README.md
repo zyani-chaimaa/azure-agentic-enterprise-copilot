@@ -35,7 +35,7 @@ Business questions rarely live in one system. Transactional data can explain **w
 
 ## See NEXORA in action
 
-**[Open the 11-slide NEXORA portfolio and application demonstrations (PDF)](docs/portfolio/NEXORA_Portfolio.pdf)**
+**[Open the 11-page NEXORA technical portfolio and application demonstrations (PDF)](docs/portfolio/NEXORA_Portfolio.pdf)**
 
 The portfolio contains actual application screenshots and a visual explanation of the architecture, technology stack, and engineering work.
 
@@ -109,7 +109,7 @@ The deployed solution includes a Next.js interface, a restricted server-side API
 
 ### 5. Debugging real integration failures
 
-During live testing, Azure SQL intermittently returned error **40613** (database temporarily unavailable) and caused HTTP 500 responses. The incident was traced to SQL connectivity; the database is configured as serverless with a 60-minute auto-pause delay. A durable retry fix should be verified in deployed code before it is claimed as completed.
+Investigated intermittent Azure SQL serverless availability failures (error **40613**) observed during live testing. This highlighted the importance of resilient database connectivity, transient-failure handling, and end-to-end validation in cloud-hosted AI applications.
 
 ## Repository guide
 
@@ -151,7 +151,7 @@ These commands install and start local components; they do not independently pro
 
 ## Scope and next improvements
 
-The portfolio demonstrates SQL analytics, multimodal document retrieval, combined reasoning, authenticated access, and cloud delivery. **Human-approved action execution** is part of the broader project vision and is **not presented here as a completed feature**. Additional work includes verifying robust transient SQL retry behavior and continuing citation-quality evaluation.
+The portfolio demonstrates SQL analytics, multimodal document retrieval, combined reasoning, authenticated access, and cloud delivery. **Human-approved action execution** is part of the broader project vision and is **not presented here as a completed feature**. Ongoing engineering priorities include validating transient-failure recovery under deployed conditions and expanding citation-quality evaluation.
 
 ---
 
