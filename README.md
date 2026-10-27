@@ -48,6 +48,28 @@ The portfolio contains actual application screenshots and a visual explanation o
 | **03 · Combined investigation** | Compared historical Olist category performance with industry findings using both analytics and document evidence. |
 | **04 · Evidence boundary** | Asked about an annual-leave policy absent from the indexed documents. NEXORA did **not** invent a policy answer. |
 
+### SQL-backed analytics
+
+NEXORA executes an approved analytics tool against Azure SQL and presents the results in a conversational interface.
+
+![NEXORA SQL analytics demonstration](docs/screenshots/sql-analytics.png)
+
+### Document-grounded RAG
+
+NEXORA retrieves relevant evidence from the Webshoppers report and generates an answer with source references.
+
+![NEXORA document-grounded answer](docs/screenshots/rag-answer1.png)
+
+The interface also exposes the retrieved passages and their source pages for inspection.
+
+![NEXORA retrieved source passages](docs/screenshots/rag-sources.png)
+
+### Cross-source orchestration
+
+NEXORA combines structured Olist analytics with retrieved industry-report evidence to compare business performance against market trends.
+
+![NEXORA combined SQL and RAG demonstration](docs/screenshots/sql-rag-orchestration.png)
+
 These are observed demonstrations, not a statistical benchmark of model accuracy.
 
 ## System architecture
